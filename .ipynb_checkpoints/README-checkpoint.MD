@@ -1,6 +1,6 @@
 <img src="imgs/logo_homics.png" width="200">
 
-# homics
+# homics v2.0.1
 
 A python package for HOst-MICrobiome Spatial analysis (homics)
 
