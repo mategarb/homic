@@ -13,7 +13,7 @@ Simulated reads of length 150bp since it reflects the read length in a real samp
 #####################################################################################################
 ################################# Read all libs
 
-import pickle
+
 import os
 import numpy as np
 import sys
@@ -23,10 +23,15 @@ import matplotlib.pyplot as plt
 import random
 import json
 import time
+import pickle
+
+from itertools import islice,tee
+import io
+from collections import defaultdict
+import re
 
 from collections import Counter
 from numpy import argmax
-from functions_bac_pipeline import dna_encode_embedding_table, parser, tax_order_sp, taxa_assignment
 
 # DL
 import tensorflow.keras as keras
@@ -46,106 +51,7 @@ from sklearn.preprocessing import LabelEncoder, OneHotEncoder
 from sklearn.metrics import classification_report
 from numba import njit, prange
 
-print("Libraries imported")
 
-#####################################################################################################
-#####################################################################################################
-#####################################################################################################
-################################# Set up GPU / CUDA
-
-class Logger(object):
-    def __init__(self, filename="Default.log"):
-        self.terminal = sys.stdout
-        self.log = open(filename, "a")
-
-    def write(self, message):
-        self.terminal.write(message)
-        self.log.write(message)
-
-gpus = tf.config.list_physical_devices('GPU')
-if gpus:
-    # Restrict TensorFlow to only use the first GPU
-    try:
-        tf.config.set_visible_devices(gpus[0], 'GPU')
-        logical_gpus = tf.config.list_logical_devices('GPU')
-        print(len(gpus), "Physical GPUs,", len(logical_gpus), "Logical GPU")
-    except RuntimeError as e:
-        # Visible devices must be set before GPUs have been initialized
-        print(e)
-
-#tf.test.is_gpu_available()
-
-print("GPU set")
-print("Num GPUs Available: ", len(tf.config.list_physical_devices('GPU')))
-
-
-
-#####################################################################################################
-#####################################################################################################
-#####################################################################################################
-################################# Set params
-
-###### ins ########
-epochs = 10
-batches = 10
-#tot_reads = 10000 # total number of reads, can be taken later
-
-# Sequence error rate 
-errorR = 0.001
-
-# Keep genera with at least x examples
-MIN_COUNT = 10
-
-# To save model in folder
-output_path = 'outputs'
-
-# Simulated data R2
-input_fq = sys.argv[1] 
-
-# Read in header ref file, ie fastq header is paired with taxa the sequence was made from
-ref_input = sys.argv[2]
-
-# Taxa names dictionary
-tax_dict = 'inputs/taxa_names_dict.pkl'
-
-###### outs ########
-
-# To save output figures
-output_fig = 'figs'
-
-print("Parameters read")
-
-#####################################################################################################
-#####################################################################################################
-#####################################################################################################
-################################# Read files
-
-# Load and prepare simulated data
-# Read input fasta file
-fasta_d_tmp = parser(input_fq)
-
-# Read in header ref file, ie fastq header is paired with taxa the sequence was made from
-
-#ref_d = {}
-#i = 0
-#with open(ref_input) as file:
-#    for line in file:
-#        ref_d[i] = line
-#        i = i + 1
-        
-ref_d = {}
-with open(ref_input) as f:
-    lines = f.readlines()
-    for line in lines:
-        header = line.split(' ')[0][1:]
-        sp = line.split('|')[1].rstrip()
-        ref_d[header] = sp
-
-# taxa names
-with open(tax_dict, 'rb') as f:
-    ge_sp_dict = pickle.load(f)
-
-print("Files loaded")
 #####################################################################################################
 #####################################################################################################
 #####################################################################################################
@@ -172,7 +78,7 @@ def introducing_seq_error(row, num_errors):
 class FragmentClassifier(object):
 
     def __init__(self, input_dna, input_taxa, test_fraction,
-                 epochs, batch_size, n_classes, Max_seq_len, Masking_value):
+                 epochs, batch_size, n_classes, Max_seq_len, Masking_value, output_model):
         self.input_dna = input_dna
         self.input_taxa = input_taxa
         self.test_fraction = test_fraction
@@ -181,6 +87,7 @@ class FragmentClassifier(object):
         self.n_classes = n_classes
         self.max_seq_len = Max_seq_len
         self.masking_value = Masking_value
+        self.output_model = output_model
         self.x_train, self.x_test, self.y_train, self.y_test = self.load_and_split()
         
         # Initialize architecture
@@ -238,6 +145,7 @@ class FragmentClassifier(object):
     def train(self):
         classifier = self.classifier
         embedder = self.embedder
+        output_model = self.output_model
         x_train, y_train = self.x_train, self.y_train
         x_test, y_test = self.x_test, self.y_test
         
@@ -248,7 +156,7 @@ class FragmentClassifier(object):
 
         # Optimize number of epochs
         earlystopping = callbacks.EarlyStopping(monitor ="loss", 
-                                        mode ="min", patience = 5, 
+                                        mode ="min", patience = 3, # 5 in v1.0.0
                                         restore_best_weights = True, verbose=1)
         
         # Define pairs in the training set
@@ -287,26 +195,26 @@ class FragmentClassifier(object):
                   (e, num_training_loops, train_loss[-1], val_loss[-1], train_acc[-1], val_acc[-1]))
         
         ########### LOSS vs EPOCHS ################
-        fig, ax = plt.subplots()
-        plt.plot(train_loss)
-        plt.plot(val_loss)
-        plt.title('model loss')
-        plt.ylabel('loss')
-        plt.xlabel('epoch')
-        plt.legend(['train', 'validation'])
-        plt.show()
-        fig.savefig(os.path.join(output_fig, 'loss_vs_epochs_'+naming+'.pdf'))
+        #fig, ax = plt.subplots()
+        #plt.plot(train_loss)
+        #plt.plot(val_loss)
+        #plt.title('model loss')
+        #plt.ylabel('loss')
+        #plt.xlabel('epoch')
+        #plt.legend(['train', 'validation'])
+        #plt.show()
+        #fig.savefig(os.path.join(output_fig, 'loss_vs_epochs_'+naming+'.pdf'))
         
         ########### Acc vs EPOCHS ################
-        fig, ax = plt.subplots()
-        plt.plot(train_acc)
-        plt.plot(val_acc)
-        plt.title('model accuracy')
-        plt.ylabel('acc')
-        plt.xlabel('epoch')
-        plt.legend(['train', 'validation'])
-        plt.show()   
-        fig.savefig(os.path.join(output_fig, 'acc_vs_epochs_'+naming+'.pdf'))
+        #fig, ax = plt.subplots()
+        #plt.plot(train_acc)
+        #plt.plot(val_acc)
+        #plt.title('model accuracy')
+        #plt.ylabel('acc')
+        #plt.xlabel('epoch')
+        #plt.legend(['train', 'validation'])
+        #plt.show()   
+        #fig.savefig(os.path.join(output_fig, 'acc_vs_epochs_'+naming+'.pdf'))
         
         ########### Save model and architecture to single file  ###########
         classifier.save(output_model)
@@ -359,156 +267,310 @@ def evaluation(model):
         print("F1: " + str(test_F1), file=f)
         print("Accuracy: " + str(acc), file=f)       
         
-print("Functions loaded")
+
 #####################################################################################################
 #####################################################################################################
 #####################################################################################################
 ################################# Data prepration
 
-# Add taxa order for the species names in dict
-ref_df = pd.DataFrame.from_dict(ref_d, orient='index', columns=['taxa'])
+# Load and prepare simulated data
+# Read input fasta file
+def prepare_data(input_fq, ref_d, ge_sp_dict):
+    fasta_d_tmp = parser(input_fq)
 
-ref_df['taxa_order'] = ref_df['taxa'].map(ge_sp_dict)
-ref_df['taxa_order'] = ref_df['taxa_order'].str.join(',')
+    # Add taxa order for the species names in dict
+    ref_df = pd.DataFrame.from_dict(ref_d, orient='index', columns=['taxa'])
 
-ref_d = ref_df.to_dict('index')
+    ref_df['taxa_order'] = ref_df['taxa'].map(ge_sp_dict)
+    ref_df['taxa_order'] = ref_df['taxa_order'].str.join(',')
 
-### Prepare simulated data ###
+    ref_d = ref_df.to_dict('index')
+    ### Prepare simulated data ###
 
-df = pd.DataFrame.from_dict(ref_d, orient='index', columns=['taxa', 'taxa_order'])
-df.reset_index(inplace=True)
-df = df.sample(frac=1).reset_index(drop=True) # Random shuffle
+    df = pd.DataFrame.from_dict(ref_d, orient='index', columns=['taxa', 'taxa_order'])
+    df.reset_index(inplace=True)
+    df_sim = df.sample(frac=1).reset_index() # Random shuffle
 
-df_keep = df.groupby('taxa').head(MIN_COUNT)
-df_keep.reset_index(inplace=True)
+    df_sim['read'] = df_sim['index'].map(fasta_d_tmp)
+    df_sim['read'] = list(filter(str.strip, df_sim['read']))
 
-tot_reads = df.shape[0] # all reads number
+    merging_cols = ['index', 'taxa_order', 'read'] 
+    df_merge = df_sim.loc[:,merging_cols]
 
-# Randomly select the missing values
-num_to_add = tot_reads - df_keep.shape[0] # as some are removed
-print('Num to add:', num_to_add)
+    df_merge['taxa_order_GE'] = df_merge['taxa_order'].str.split(',').str[1:]
+    df_merge['taxa_order_GE'] = df_merge['taxa_order_GE'].str.join(',') # GE genus?
 
-df_add = df[~df['index'].isin(df_keep['index'].tolist())]
-df_add = df_add.sample(n = num_to_add)
+    return df_merge
 
-# Merge df_keep and df_add
-df_sim = pd.concat([df_keep, df_add])
+# Load and prepare simulated data
+# Read input fasta file
+def prepare_data_old(input_fq, ref_d, ge_sp_dict, MIN_COUNT, errorR):
+    fasta_d_tmp = parser(input_fq)
 
-# Match taxa with fastq header
-df_sim['read'] = df_sim['index'].map(fasta_d_tmp)
-df_sim.fillna('Unknown', inplace=True)
+    # Add taxa order for the species names in dict
+    ref_df = pd.DataFrame.from_dict(ref_d, orient='index', columns=['taxa'])
 
-### INTRODUCE RANDOM ERRORS  ###
+    ref_df['taxa_order'] = ref_df['taxa'].map(ge_sp_dict)
+    ref_df['taxa_order'] = ref_df['taxa_order'].str.join(',')
 
-# Sum read length for all reads
-tot_read_length = df_sim['read'].str.len().sum()
+    ref_d = ref_df.to_dict('index')
 
-tot_num_errors = int(tot_read_length * errorR)
+    ### Prepare simulated data ###
 
-if tot_num_errors > df_sim.shape[0]:
-    # Randomly select reads which shall include a simulated seq error
-    df_subset = df_sim.copy()
-    num_errors = int(tot_num_errors/df_sim.shape[0])
-else:
-    # Randomly select reads which shall include a simulated seq error, to simplify: one error per read
-    df_subset = df_sim.sample(n=tot_num_errors, replace=False)
-    num_errors = 1
+    df = pd.DataFrame.from_dict(ref_d, orient='index', columns=['taxa', 'taxa_order'])
+    df.reset_index(inplace=True)
+    df = df.sample(frac=1).reset_index(drop=True) # Random shuffle
 
-df_subset['read'] = df_subset.apply(lambda row: introducing_seq_error(row['read'], num_errors), axis=1)
+    df_keep = df.groupby('taxa').head(MIN_COUNT)
+    df_keep.reset_index(inplace=True)
 
-# Delete subset from main df
-new_sim = df_sim[~df_sim['index'].isin(df_subset['index'].tolist())]
+    tot_reads = df.shape[0] # all reads number
 
-df_sim = pd.concat([new_sim, df_subset])
+    # Randomly select the missing values
+    num_to_add = tot_reads - df_keep.shape[0] # as some are removed
+    print('Num to add:', num_to_add)
 
-## SELECTINGA ##
-merging_cols = ['index', 'taxa_order', 'read'] 
+    df_add = df[~df['index'].isin(df_keep['index'].tolist())]
+    df_add = df_add.sample(n = num_to_add)
 
-df_merge = df_sim.loc[:,merging_cols]
-df_merge['taxa_order_GE'] = df_merge['taxa_order'].str.split(',').str[1:]
-df_merge['taxa_order_GE'] = df_merge['taxa_order_GE'].str.join(',')
-
-
-print("Data prepared")
-
-#print(df_merge.head(1))
-#####################################################################################################
-#####################################################################################################
-#####################################################################################################
-################################# Stack into one-hot tensor
-starte = time.time()
-
-df_merge['one hot tensor'] = df_merge.apply(lambda row: dna_encode_embedding_table(row['read']), axis=1)
-X = np.array(df_merge['one hot tensor'].tolist())
-
-# Padding to the same sequence length
-masking_value = -1
-max_seq_len = max(len(x) for x in df_merge['one hot tensor'].tolist())
-N = X.shape[0]
-dimension = 5
-
-Xpad = np.full((N, max_seq_len, dimension), fill_value=masking_value)
-for s, x in enumerate(X):
-    seq_len = x.shape[0]
-    Xpad[s, 0:seq_len, :] = x
-
-print("Stacked into tensor")    
+    # Merge df_keep and df_add
+    df_sim = pd.concat([df_keep, df_add])
     
-#####################################################################################################
-#####################################################################################################
-#####################################################################################################
-################################# One-hot encoding of the taxa
-# Naming of output files
-naming = str(tot_reads)+'_totreads_'+str(epochs)+'epochs_'+str(batches)+'batches_'+str(errorR)+'errorRate'
+
+    # Match taxa with fastq header
+    df_sim['read'] = df_sim['index'].map(fasta_d_tmp)
+    df_sim.fillna('Unknown', inplace=True)
+    
+    ### INTRODUCE RANDOM ERRORS  ###
+
+    # Sum read length for all reads
+    tot_read_length = df_sim['read'].str.len().sum()
+    
+
+    tot_num_errors = int(tot_read_length * errorR)
+
+    if tot_num_errors > df_sim.shape[0]:
+        # Randomly select reads which shall include a simulated seq error
+        df_subset = df_sim.copy()
+        num_errors = int(tot_num_errors/df_sim.shape[0])
+    else:
+        # Randomly select reads which shall include a simulated seq error, to simplify: one error per read
+        df_subset = df_sim.sample(n=tot_num_errors, replace=False)
+        num_errors = 1
+
+    df_subset['read'] = df_subset.apply(lambda row: introducing_seq_error(row['read'], num_errors), axis=1)
+
+    # Delete subset from main df
+    new_sim = df_sim[~df_sim['index'].isin(df_subset['index'].tolist())]
+
+    df_sim = pd.concat([new_sim, df_subset])
+
+    ## SELECTINGA ##
+    merging_cols = ['index', 'taxa_order', 'read'] 
+
+    df_merge = df_sim.loc[:,merging_cols]
+    df_merge['taxa_order_GE'] = df_merge['taxa_order'].str.split(',').str[1:]
+    df_merge['taxa_order_GE'] = df_merge['taxa_order_GE'].str.join(',')
+    
+    return df_merge
+
+def one_hot_encoder(df_merge):
+    df_merge['one_hot_tensor'] = df_merge.apply(lambda row: dna_encode_embedding_table(row['read']), axis=1)
+    X = np.array(df_merge['one_hot_tensor'].tolist(), dtype=object)
+
+    # Padding to the same sequence length
+    masking_value = -1
+    max_seq_len = max(len(x) for x in df_merge['one_hot_tensor'].tolist())
+    N = X.shape[0]
+    dimension = 5
+
+    Xpad = np.full((N, max_seq_len, dimension), fill_value=masking_value)
+    for s, x in enumerate(X):
+        seq_len = x.shape[0]
+        Xpad[s, 0:seq_len, :] = x
+    return Xpad
+
+def one_hot_model(df_merge, Xpad, epochs, batches, output_path):
+    naming = str(df_merge.shape[0])+'_totreads_'+str(epochs)+'epochs_'+str(batches)+'batches_'
+    masking_value = -1
+    max_seq_len = max(len(x) for x in df_merge['one_hot_tensor'].tolist())
+    
+    y = df_merge['taxa_order'] #df_merge['taxa_order_GE']
+
+    encoder = LabelEncoder()
+    encoder.fit(y)
+    encoded_y = encoder.transform(y)
+
+    # convert integers to dummy variables (i.e. one hot encoded)
+    dummy_y = to_categorical(encoded_y)
+
+    # Save Encoder
+    # To save DL model/embedder
+    output_encoder = output_path + '/encoder_' + naming + '.h5'
+    pickle.dump(encoder, open(output_encoder, 'wb'))
+
+    assert set(dummy_y.sum(axis=1)) == {1}
+    # Initialize model and printout summary
+    # Number of taxa to classify
+    n_classes = dummy_y.shape[1]
+
+    model = FragmentClassifier(Xpad, dummy_y, test_fraction=0.2, 
+                               epochs=epochs, batch_size=batches,
+                               n_classes=n_classes, Max_seq_len=max_seq_len,
+                               Masking_value=masking_value, 
+                               output_model=output_path + '/model_' + naming + '.h5')
+    return model
 
 
-y = df_merge['taxa_order_GE']
-encoder = LabelEncoder()
-encoder.fit(y)
-encoded_y = encoder.transform(y)
+def taxa_assignment(report):
+    """
+    Create a dictionary with the taxa order with taxID as key and taxa order as value
+    Takes the kraken2 report as input and Returns the dictionary.
+    """
+    tax_order_dict = {}
+    sp_tax_dict = {} # This is an extra dictionary with only species and theri corresponding NCBI taxID
 
-# convert integers to dummy variables (i.e. one hot encoded)
-dummy_y = to_categorical(encoded_y)
+    for index, row in report.iterrows():
+        
+        # Domain
+        if row['torder'] == 'D':
+            domain = row['sci-name'].lstrip()
+            dvalue = ','.join([domain] + ['Unassigned'] * 6)
+            tax_order_dict[row['ncbi taxID']] = dvalue
+        # Subdomain
+        elif row['torder'] == 'D1':
+            tax_order_dict[row['ncbi taxID']] = dvalue
 
-# Save Encoder
-# To save DL model/embedder
-encoder_file = 'encoder_'+naming+'.h5'
-output_encoder = os.path.join(output_path, encoder_file)
-pickle.dump(encoder, open(output_encoder, 'wb'))
+        # Phylum
+        elif row['torder'] == 'P':
+            phylum = row['sci-name'].lstrip()
+            pvalue = ','.join([domain] + [phylum] + ['Unassigned'] * 5)
+            tax_order_dict[row['ncbi taxID']] = pvalue
 
-assert set(dummy_y.sum(axis=1)) == {1}
+        elif ((row['torder'].startswith('P')) & (len(row['torder']) > 1)): # if x1 or x2 or xn
+            tax_order_dict[row['ncbi taxID']] = pvalue
 
-# Initialize model and printout summary.
+        # Class
+        elif row['torder'] == 'C':
+            Class = row['sci-name'].lstrip()
+            cvalue = ','.join([domain] + [phylum] + [Class] + ['Unassigned'] * 4)
+            tax_order_dict[row['ncbi taxID']] = cvalue
 
-# Number of taxa to classify
-n_classes = dummy_y.shape[1]
+        # Order
+        elif ((row['torder'] == 'O') | (row['torder'] == 'C1')): 
+            order = row['sci-name'].lstrip()
+            ovalue = ','.join([domain] + [phylum] + [Class] + [order] + ['Unassigned'] * 3)
+            tax_order_dict[row['ncbi taxID']] = ovalue            
 
-model = FragmentClassifier(Xpad, dummy_y, test_fraction=0.2, 
-                           epochs=epochs, batch_size=batches,
-                           n_classes=n_classes, Max_seq_len=max_seq_len,
-                           Masking_value=masking_value)
-model.classifier.summary()
+        # Family
+        elif ((row['torder'] == 'F') | (row['torder'] == 'O1') | (row['torder'] == 'C2')):
+            family = row['sci-name'].lstrip()
+            fvalue = ','.join([domain] + [phylum] + [Class] + [order] + [family] + ['Unassigned'] * 2)
+            tax_order_dict[row['ncbi taxID']] = fvalue
 
-print("Encoded") 
+        # Genus
+        elif ((row['torder'] == 'G') | (row['torder'] == 'F1') | (row['torder'] == 'O2') | (row['torder'] == 'C3')):
+            genus = row['sci-name'].lstrip()
+            gvalue = ','.join([domain] + [phylum] + [Class] + [order] + [family] + [genus] + ['Unassigned'] * 1)
+            tax_order_dict[row['ncbi taxID']] = gvalue
 
-ende = time.time()
-print("One-hot tensor + encoder time: ") 
-print(ende - starte)
+        # species
+        elif ((row['torder'] == 'S') | (row['torder'] == 'G1') | (row['torder'] == 'F2') | (row['torder'] == 'O3') | (row['torder'] == 'C4')):
+            specie = row['sci-name'].lstrip()
+            svalue = ','.join([domain] + [phylum] + [Class] + [order] + [family] + [genus] + [row['sci-name'].lstrip()])
+            tax_order_dict[row['ncbi taxID']] = svalue
+            sp_tax_dict[specie] = row['ncbi taxID']
+        
+        # Subspecies    
+        elif row['torder'] == 'S1':
+            tax_order_dict[row['ncbi taxID']] = svalue
 
-#####################################################################################################
-#####################################################################################################
-#####################################################################################################
-################################# Train model
+    return tax_order_dict, sp_tax_dict
+   
+def tax_order_sp(row, d, d_sp):
+    """
+    Based on taxID, return the taxa order found in d.
+    If not taxID found in d (it is a subspecies), look for the genus+species in the d_sp.
+    Returns taxa order.
+    """
+    if row['taxa_orderTMP'] == 10090:
+        return 'Animalia,Chordata,Mammalia,Rodentia,Muridae,Mus,Mus musculus'
+    
+    elif row['taxa_orderTMP'] == 131567: # Cellular organism
+        return ','.join(['Cellular organism'] + ['Unassigned'] * 6)
+    
+    else:
+        try:
+            taxorder = d[row['taxa_orderTMP']]
+            return taxorder
+        except KeyError:
+            sp = ' '.join([row['sp_short'][0], row['sp_short'][1]])
+            
+            try:        
+                new_taxid = d_sp[sp]
+                return d[new_taxid]
+            except KeyError:
+                return ','.join(['Unassigned'] * 7)
+    
+           
+def parser(filename):
+    """
+    Generate a list of tuples (header, read)
+    """
+    fastq_parsed = {}
+    try:
 
-output_file = 'model_'+naming+'.h5'
-output_model = os.path.join(output_path, output_file)
+        with open(filename) as fq:
+            header = next(fq)
+            read = next(fq)
+            fastq_parsed[header[1:-1].split(' ')[0]] = read[:-1] # we don't want new-line chars or @ sign in reads
+            while True:
+                next(fq) # skip + line
+                next(fq) # skip qscore
+                header = next(fq) # store next read header
+                read = next(fq) # store next read seq
+                fastq_parsed[header[1:-1].split(' ')[0]] = read[:-1]
+    except:
+        StopIteration # when we run out of reads, stop
+    return fastq_parsed
+   
+def dna_encode_embedding_table(dna_input, name="dna_encode"):
+    """
+    DNA embedding.
+    """
+    embedding_values = np.zeros([len(dna_input), 5], np.float32)
+    values = ("A", "C", "G", "T", "N")
+    for j, b in enumerate(dna_input):
+        if b in values:
+            embedding_values[j, values.index(b)] = 1
+    return embedding_values
 
-start = time.time()
-model.train()
-end = time.time()
+def stack_padding(info_xy):
+    # Stack reads into one tensor
+    info_xy['one_hot_tensor'] = info_xy.apply(lambda row: dna_encode_embedding_table(row['read']), axis=1)
+    X = np.array(info_xy['one_hot_tensor'].tolist())
+    # Padding to the same sequence length
+    masking_value = -1
+    max_seq_len = max(len(x) for x in info_xy['one_hot_tensor'].tolist())
+    N = X.shape[0]
+    dimension = 5
 
-# Plot evaluation metrics
-evaluation(model)
+    Xpad = np.full((N, max_seq_len, dimension), fill_value=masking_value)
+    for s, x in enumerate(X):
+        seq_len = x.shape[0]
+        Xpad[s, 0:seq_len, :] = x
+    return Xpad
 
-print("Model training finished with time: ") 
-print(end - start)
+def extract_taxa_info(info_xy, column_header, slide_type):
+    y_taxaorder = info_xy[column_header].tolist()
+    y_fastqH = info_xy.index.tolist()
+
+    if slide_type == 'ST':
+        y_umi = info_xy['UMI'].tolist()
+        return y_taxaorder, y_fastqH, y_umi
+    elif slide_type == 'QC':
+        return y_taxaorder, y_fastqH
+
+def predict_taxa_in_model(Xpad, model):
+    predictions = model.predict(Xpad)
+    return predictions
