@@ -85,6 +85,25 @@ import collections
 #fragment_length = 500 # Estimated fragment size of the 16S gene captured on the slide surface
 #R2_length = 300 # Max R2 length
 
+def prune_references(probe_seq, mic_ref_seqs):
+    
+    aligner = Align.PairwiseAligner()
+    aligner.mode = "local"
+    aligner.match_score = 1.0
+    aligner.mismatch_score = -1
+    aligner.gap_score = -1
+    
+    scores_vec = []
+    seq1 = Seq(probe_seq)
+    for key, value in mic_ref_seqs.items():
+        seq2 = Seq(value[1])
+        tmp_aligns = aligner.align(seq2, seq1)
+        alignment = tmp_aligns[0]
+        scores_vec.append(alignment.score)
+        coords_df = pd.DataFrame(np.concatenate(alignment.coordinates))
+        mic_ref_seqs[key] = value[1][0:coords_df.iloc[0,0]]
+    return mic_ref_seqs, scores_vec
+
 def training_data(n_reads, output_path, score_thr, mic_refs, r2_header_lines, r2_read_lines, r2_qual_lines):
     
     random_species_list = [] # To store what genus+species got picked
@@ -95,7 +114,7 @@ def training_data(n_reads, output_path, score_thr, mic_refs, r2_header_lines, r2
     r2_output_file_name = output_folder + '_tra_simulated.fastq'
     start_vec = []
     all_scores = []
-    qualities_150 = [] 
+    qual_vec = [] 
 
     aligner = Align.PairwiseAligner()
     aligner.mode = "local"
@@ -106,13 +125,14 @@ def training_data(n_reads, output_path, score_thr, mic_refs, r2_header_lines, r2
     ii = 0 # so it stops when it reaches n reads with the alignment score < thr
     #def create_simulated_data(i):
     with open(r2_output_file_name, 'a+') as f:
-        for key, value in fasta_dict.items():            
-            random_key = key #random.choice(list(fasta_dict)) # key = species name
-            random_sequence = value[1] # select nuc. sequence for a given species
-            print(random_key)
+        #for key, value in fasta_dict.items():            
+            #random_key = key #random.choice(list(fasta_dict)) # key = species name
+            #random_sequence = value # select nuc. sequence for a given species
             
             for i, header in enumerate(r2_header_lines):
                 # Randomly pick (species) sequence from the 16S fragment from the dictionary
+                random_key = random.choice(list(fasta_dict)) # key = species name
+                random_sequence = fasta_dict[random_key ] # select nuc. sequence for a given species
                 # Store the genus+species which was randomly selected
                 R2_length = len(r2_read_lines[i]) # define read length based on real data
                 # randomly select where the R2 read is gonna start from a normal distibuiton
@@ -120,20 +140,21 @@ def training_data(n_reads, output_path, score_thr, mic_refs, r2_header_lines, r2
                 # total length - random value
                 start_vec.append(start/(len(random_sequence) - R2_length))
 
-                #if R2_length == 151: # collect statistics for reads of length 150, just for plot
-                #    qualities_150.append(list(map(ord, list(r2_qual_lines[i]))))
                 random_sequence_chopped = random_sequence[start:start + R2_length]
                 qual_seq = r2_qual_lines[i].rstrip()
+                qual_vec.append(list(map(ord, list(r2_qual_lines[i]))))
                 seq1 = Seq(random_sequence_chopped)
+
                 for key0, value0 in fasta_dict.items():
-                    seq2 = Seq(value0[1])
+                    seq2 = Seq(value0)
                     scores_vec = []
                     if key0 not in random_key:
                         tmp_aligns = aligner.score(seq2, seq1)
-
                         scores_vec.append(tmp_aligns)
-
+                
+                
                 if not not scores_vec:
+                    all_scores.append(np.nanmean(scores_vec)/R2_length)
                     if np.nanmean(scores_vec)/R2_length < score_thr:
                         random_species_list.append(header.rstrip()+"|"+random_key) 
                         # it will be used as gold standard reference
@@ -145,7 +166,7 @@ def training_data(n_reads, output_path, score_thr, mic_refs, r2_header_lines, r2
                         print('+', file = f) # strand
                         print(qual_seq, file = f) # quality sequence
                         ii = ii + 1
-                        all_scores.append(np.mean(scores_vec)/R2_length)
+                        
                         if ii == n_reads: # move to next iteration if N reads are reached
                             break
 
@@ -158,9 +179,10 @@ def training_data(n_reads, output_path, score_thr, mic_refs, r2_header_lines, r2
     frequency = collections.Counter(random_only_species_list)
 
     # printing the frequency
-    print("Data generated with ",len(random_species_list)," reads")
-    print("Following number of species is included in reads: ")
-    print(len(dict(frequency)))
+    print("Data generated with ", len(random_species_list)," reads")
+    print("Number of species included in the data: ", len(dict(frequency)))
+    species_list = list(map(lambda x: x, set(random_only_species_list)))
+    return all_scores, start_vec, qual_vec, species_list
 
         
         
@@ -173,18 +195,21 @@ def training_data(n_reads, output_path, score_thr, mic_refs, r2_header_lines, r2
 ## For each FASTQ header, replace the sequence with randomly picked 16S gene (sequence?)
 ## R2 on this sequence also starts randomly on the sequence (this is dependent on the fragment length)
 
-def validation_data(n_reads, output_path, mic_refs, r2_header_lines, r2_read_lines, r2_qual_lines):
+def validation_data(n_reads, output_path, mic_refs, species_tra, r2_header_lines, r2_read_lines, r2_qual_lines, errorR):
     random_species_list = [] # To store what genus+species got picked
 
+    for key in list(mic_refs.keys()):
+        if key not in species_tra:
+            mic_refs.pop(key)
+    
     r2_output_file_name = os.path.join(output_path + '_val_simulated.fastq')
     start_vec = []
-
+    avg_read_len = sum(map(len, r2_read_lines))/len(r2_read_lines) # average read length in the data
     #def create_simulated_data(i):
     with open(r2_output_file_name, 'a+') as f:
         for key, value in mic_refs.items():            
             random_key = key #random.choice(list(fasta_dict)) # key = species name
-            random_sequence = value[1] # select nuc. sequence for a given species
-            
+            random_sequence = value # select nuc. sequence for a given species
             for i, header in enumerate(r2_header_lines):
                 # Randomly pick (species) sequence from the 16S fragment from the dictionary
                 #random_key = random.choice(list(mic_refs)) # key = species name
@@ -193,13 +218,28 @@ def validation_data(n_reads, output_path, mic_refs, r2_header_lines, r2_read_lin
                 random_species_list.append(header.rstrip()+"|"+random_key) # it will be used as gold standard reference
                 R2_length = len(r2_read_lines[i])
                 # randomly select where the R2 read is gonna start from a normal distibuiton
+
                 start = len(random_sequence) - int(np.random.randint(R2_length, len(random_sequence) - R2_length)) 
                 # total length - random value
                 start_vec.append(start/(len(random_sequence) - R2_length))
 
                 random_sequence_chopped = random_sequence[start:start + R2_length]
+
+                tot_num_errors = int(avg_read_len * errorR)
+
+                if tot_num_errors > len(r2_read_lines):
+                    num_errors = int(tot_num_errors/len(r2_read_lines))
+                    random_sequence_chopped = impute_seq_error(random_sequence_chopped, num_errors)
+                else:
+                    # Randomly select reads which shall include a simulated seq error
+                    # zero, one or two errors per read
+                    errors_no = [0, 1, 2] # no error, 1 error, 2 errors
+                    num_errors = random.choices(errors_no, weights=(4,4,2), k=1)
+                    random_sequence_chopped = impute_seq_error(random_sequence_chopped, num_errors)
+                    
                 qual_seq = r2_qual_lines[i].rstrip()
 
+                
                 # save to output file
                 print(header.rstrip(), file = f) # fastq header
                 print(random_sequence_chopped, file = f) # randomly picked sequence from part of the 16S gene
@@ -218,3 +258,40 @@ def validation_data(n_reads, output_path, mic_refs, r2_header_lines, r2_read_lin
         for item in random_species_list:
             print(item, file = f)
 
+
+# sequencing error
+def impute_seq_error(row, num_errors):
+    """
+    Introducing a single base error (replacement). 
+    """
+    if num_errors[0] == 0: # no error, return it back
+        return row
+    else:
+        inds = list(range(len(row)))
+        sam = random.sample(inds, num_errors[0]) # sample on which position read should have an error
+        lst = list(row)
+        for ind in sam:
+            letters_to_draw = ["A", "C", "T", "G"]
+            if lst[ind] == "A" or lst[ind] == "T" or lst[ind] == "C" or lst[ind] == "G":
+                letters_to_draw.remove(lst[ind]) # as we don't want to impute the same base
+            letts = iter(random.sample(letters_to_draw, 1))
+            lst[ind] = next(letts)
+        return "".join(lst)
+
+#another attempt to make data estimation for unique regions
+## sliding window
+#window_size = 150
+
+#for key, value in mic_refs.items():
+
+#    print(key)
+#    val = value #list(mic_refs.values())[0]
+#    mic_refs.pop(key) # leave one out
+#    print(mic_refs_loo)
+#    all_kmers = []
+#    for i in range(0, len(val) - window_size):
+#        all_kmers.append(val[i:(i+window_size)])
+#        for species, sequence in mic_refs_loo.items():
+#            print(sequence)
+
+#print(len(all_kmers))

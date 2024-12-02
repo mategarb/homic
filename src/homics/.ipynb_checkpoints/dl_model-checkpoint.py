@@ -12,8 +12,6 @@ Simulated reads of length 150bp since it reflects the read length in a real samp
 #####################################################################################################
 #####################################################################################################
 ################################# Read all libs
-
-
 import os
 import numpy as np
 import sys
@@ -41,7 +39,7 @@ from tensorflow.keras.callbacks import Callback
 from tensorflow.keras import Sequential, Model, callbacks
 from tensorflow.keras.layers import Dense, LSTM, Dropout, Conv1D, SimpleRNN, Input, Concatenate, Bidirectional, Masking, Embedding
 from tensorflow.keras.callbacks import ModelCheckpoint, Callback
-from tensorflow.keras.optimizers import SGD
+from tensorflow.keras.optimizers import SGD, Adam, Adafactor, Lion
 
 import sklearn.metrics
 from sklearn.model_selection import train_test_split
@@ -51,36 +49,23 @@ from sklearn.preprocessing import LabelEncoder, OneHotEncoder
 from sklearn.metrics import classification_report
 from numba import njit, prange
 
-
+from keras import layers
 #####################################################################################################
 #####################################################################################################
 #####################################################################################################
 ################################# Functions 
 
-# sequencing error
-def introducing_seq_error(row, num_errors):
-    """
-    Introducing a single base error (replacement). 
-    """
-    #inds = [i for i,_ in enumerate(row) if not row.isspace()] # array of all posible positions
-    inds = list(range(len(row)))
-    sam = random.sample(inds, num_errors) # sample on which position read should have an error
-    lst = list(row)
-    for ind in sam:
-        letters_to_draw = ["A", "C", "T", "G"]
-        if lst[ind] == "A" or lst[ind] == "T" or lst[ind] == "C" or lst[ind] == "G":
-            letters_to_draw.remove(lst[ind]) # as we don't want to impute the same base
-        letts = iter(random.sample(letters_to_draw, 1))
-        lst[ind] = next(letts)
-    return "".join(lst)
+
 
 # DL model + plots
 class FragmentClassifier(object):
 
-    def __init__(self, input_dna, input_taxa, test_fraction,
+    def __init__(self, input_dna, input_taxa, data_val, classes_val, test_fraction,
                  epochs, batch_size, n_classes, Max_seq_len, Masking_value, output_model):
         self.input_dna = input_dna
         self.input_taxa = input_taxa
+        self.data_val = data_val
+        self.classes_val = classes_val
         self.test_fraction = test_fraction
         self.epochs = epochs
         self.batch_size = batch_size
@@ -88,7 +73,7 @@ class FragmentClassifier(object):
         self.max_seq_len = Max_seq_len
         self.masking_value = Masking_value
         self.output_model = output_model
-        self.x_train, self.x_test, self.y_train, self.y_test = self.load_and_split()
+        self.x_train, self.x_test, self.y_train, self.y_test, self.x_val, self.y_val = self.load_and_split()
         
         # Initialize architecture
         self.classifier = None
@@ -96,55 +81,102 @@ class FragmentClassifier(object):
         self.architecture()
         
     def load_and_split(self):
-        dna_reads = self.input_dna
-        print('total number of reads in input:', len(dna_reads))
+        print('total number of reads in input:', len(self.input_dna))
         print('number of classes:', self.input_taxa.shape[1])
 
-        x = np.array(dna_reads)
+        x = np.array(self.input_dna)
         y = np.array(self.input_taxa)
-
         x_train, x_test, y_train, y_test = train_test_split(x, y, test_size=self.test_fraction)
 
+        x_v = np.array(self.data_val)
+        y_v = np.array(self.classes_val)
+        print('number of classes in validation:', self.classes_val[1])
+
+        #print(x)
+        #print(x_v)
+        #x_v_train, x_v_test, y_v_train, y_v_test = train_test_split(x_v, y_v, test_size=self.test_fraction,
+        #                                                            shuffle=True, stratify=None)
+
+ 
         print(x_train.shape, x_test.shape, y_train.shape, y_test.shape)
         print("Training classes:", y_train.sum(axis=0).astype(int))
         print("Test classes:", y_test.sum(axis=0).astype(int))
                
-        return x_train, x_test, y_train, y_test
+        return x_train, x_test, y_train, y_test, x_v, y_v
 
     def architecture(self):
         
         inp = Input(shape=(None , 5))        
-        mask = Masking(mask_value=self.masking_value, input_shape=(self.max_seq_len, 5))(inp)
+        #mask = Masking(mask_value=self.masking_value, input_shape=(self.max_seq_len, 5))(inp)
         
-        conv5 = Conv1D(filters=64, kernel_size=15, activation='relu', padding="same")(mask) 
-        conv7 = Conv1D(filters=64, kernel_size=17, activation='relu', padding="same")(mask) 
-        conv11 = Conv1D(filters=64, kernel_size=19, activation='relu', padding="same")(mask)
-        conv13 = Conv1D(filters=64, kernel_size=23, activation='relu', padding="same")(mask)
-        mrg = Concatenate()([conv5, conv7, conv11, conv13])
-        mrg = Dropout(rate=0.5)(mrg)
+        conv5 = layers.Conv1D(filters=64, kernel_size=15, activation='relu', padding="same")(inp)#(mask) 
+        conv7 = layers.Conv1D(filters=64, kernel_size=17, activation='relu', padding="same")(inp)#(mask) 
+        conv11 = layers.Conv1D(filters=64, kernel_size=19, activation='relu', padding="same")(inp)#(mask)
+        conv13 = layers.Conv1D(filters=64, kernel_size=23, activation='relu', padding="same")(inp)#(mask)
+        l = Concatenate()([conv5, conv7])
+        l = Concatenate()([l, conv11])
+        l = Concatenate()([l, conv13])
+        l = Dropout(rate=0.5)(l)
 
         # Add 2 bidirectional LSTMs
-        x = Bidirectional(LSTM(64, return_sequences=True))(mrg)
-        x = Bidirectional(LSTM(64))(x)
-        dp1 = Dropout(rate=0.2)(x)
+        l = layers.Bidirectional(LSTM(64, return_sequences=True))(l)
+        l = layers.Bidirectional(LSTM(64))(l)
+        l = layers.Dropout(rate=0.4)(l)
         
-        emb1 = Dense(64, activation='relu')(dp1) #16
-        dp2 = Dropout(rate=0.1)(emb1)
-        emb2 = Dense(32, activation='relu')(dp2) #8
-        decision = Dense(self.input_taxa.shape[1], activation='softmax')(emb2)
+        l = layers.Dense(64, activation='relu')(l) #16
+        l = layers.Dropout(rate=0.1)(l)
+        l = layers.Dense(32, activation='relu')(l) #8
+        decision = layers.Dense(self.input_taxa.shape[1], activation='softmax')(l)
         
         model = Model(inputs=inp, outputs=decision)
-        model.compile(optimizer='Adam', 
-                      loss='categorical_crossentropy', 
-                      metrics=['categorical_accuracy']) 
+        model.compile(optimizer='Adam', #'Adam'
+                      loss=keras.losses.CategoricalFocalCrossentropy(), # 'categorical_crossentropy'
+                      metrics=['categorical_accuracy','AUC','f1_score']) 
                 
         ### Point class to models
-        self.embedder = emb2 #embedder
+        #self.embedder = emb2 #embedder
+        self.classifier = model
+
+    def architecture2(self):
+
+        inp = Input(shape=(None, 5))
+        #mask = Masking(mask_value=self.masking_value, input_shape=(self.max_seq_len, 5))(inp)
+        #embed = Embedding(self.max_seq_len, 5)(inp)
+        
+        #keras.layers.Reshape((3, 4))(x)
+        #lstm = LSTM(32, input_shape=(self.max_seq_len, 5), return_sequences=True)(embed, mask=mask)
+        l = layers.Conv1D(filters=64, kernel_size=15, activation='relu', padding="same")(inp) # for 1D data
+        l = layers.Conv1D(filters=64, kernel_size=20, activation='relu', padding="same")(l) 
+        #l = layers.Conv1D(filters=64, kernel_size=19, activation='relu', padding="same")(mask)
+        #l = layers.Conv1D(filters=64, kernel_size=23, activation='relu', padding="same")(mask)
+
+        #l = layers.GlobalMaxPooling1D()(l)
+        #l = layers.Dropout(rate=0.1)(l) # randomly sets values to 0 to avoid overfitting
+
+        # Add 2 bidirectional LSTMs
+        #l = layers.Bidirectional(LSTM(64, return_sequences=True))(l)
+        l = layers.Bidirectional(LSTM(64))(l)
+        #l = layers.Dropout(rate=0.25)(l)
+        
+        l = layers.Dense(64, activation='relu')(l) #16
+        l = layers.Dropout(rate=0.25)(l)
+        l = layers.Dense(32, activation='relu')(l) #8
+        l = layers.Dropout(rate=0.15)(l)
+        predictions = layers.Dense(self.input_taxa.shape[1], activation='softmax', name="predictions")(l) # "sigmoid"
+        
+        model = keras.Model(inputs=inp, outputs=predictions)
+        model.compile(optimizer='Adam', #'Adam'
+                      loss=keras.losses.CategoricalFocalCrossentropy(), 
+                      metrics=['categorical_accuracy','AUC','f1_score']) 
+            
+                        
+        ### Point class to models
+        #self.embedder = emb1 #embedder
         self.classifier = model
         
     def train(self):
         classifier = self.classifier
-        embedder = self.embedder
+        #embedder = self.embedder not used anywhere
         output_model = self.output_model
         x_train, y_train = self.x_train, self.y_train
         x_test, y_test = self.x_test, self.y_test
@@ -156,8 +188,8 @@ class FragmentClassifier(object):
 
         # Optimize number of epochs
         earlystopping = callbacks.EarlyStopping(monitor ="loss", 
-                                        mode ="min", patience = 3, # 5 in v1.0.0
-                                        restore_best_weights = True, verbose=1)
+                                        mode ="min", patience = 5, # 5 in v1.0.0
+                                        restore_best_weights = True, verbose=0)
         
         # Define pairs in the training set
         training_set  = list(zip(x_train, y_train))
@@ -174,8 +206,12 @@ class FragmentClassifier(object):
                 yt = y.reshape((1, y.shape[0]))
 
                 ### Do one update step with one sequence
-                ca = classifier.fit(xt, yt, batch_size=self.batch_size, 
-                                    epochs=1, verbose=0, validation_data=None, callbacks =[earlystopping]) 
+                classifier.fit(xt, yt, 
+                               batch_size=self.batch_size, 
+                               epochs=1, 
+                               verbose=0,
+                               validation_data=None,
+                               callbacks =[earlystopping])  # ca = 
                     
             ### evaluate once per epoch
             ### Computes metrics in the order they are entered in Model() above
@@ -218,12 +254,55 @@ class FragmentClassifier(object):
         
         ########### Save model and architecture to single file  ###########
         classifier.save(output_model)
+
+             
+    def train2(self):
+        classifier = self.classifier
+        output_model = self.output_model
+        x_train, y_train = self.x_train, self.y_train
+        x_test, y_test = self.x_test, self.y_test
+        x_val, y_val = self.x_val, self.y_val
+        
+        train_loss = []
+        val_loss = []
+        train_acc = []
+        val_acc = []
+
+        # Optimize number of epochs
+        earlystopping = callbacks.EarlyStopping(monitor ="loss", 
+                                        mode ="min", patience = 3, # 5 in v1.0.0
+                                        restore_best_weights = True, verbose=0)
+    
+        baseline_history = classifier.fit(x_train, y_train,
+                                            batch_size=self.batch_size, 
+                                            epochs=self.epochs,
+                                            verbose=2,
+                                            validation_data=(x_val, y_val), # need to add this
+                                            shuffle=True,  # ensures data is shuffled before each epoch
+                                            callbacks =[earlystopping]) 
+                    
+        ### evaluate once per epoch
+        ### Computes metrics in the order they are entered in Model() above
+        eval_tr = classifier.evaluate(x_train, y_train, verbose=0)
+        eval_te = classifier.evaluate(x_test, y_test, verbose=0)
+
+            
+        ### Compute once per epoch ####
+        ### Store only the last point ####
+        train_loss.append(eval_tr[0])
+        train_acc.append(eval_tr[1])
+        val_loss.append(eval_te[0]) 
+        val_acc.append(eval_te[1]) 
+            
+       
+        classifier.save(output_model)
+        return baseline_history
         
 # Separate plots from DL model
 
-def evaluation(model):
+def evaluation(model, output_fig):
     classifier = model.classifier
-    embedder = model.embedder
+    #embedder = model.embedder
     x_test, y_test = model.x_test, model.y_test
     n_classes = model.n_classes
 
@@ -255,15 +334,18 @@ def evaluation(model):
     ax.set_title('ROC-AUC')
     #ax.legend(loc="lower right")
     plt.show()
-    fig.savefig(os.path.join(output_fig, 'ROC_AUC_'+naming+'.pdf'))
+    fname = time.strftime("%Y%m%d-%H%M%S")
+    fig.savefig(os.path.join(output_fig, fname + '_ROC_AUC'+'.pdf'))
 
     ########### STATS ################
 
-    test_F1 = sklearn.metrics.f1_score(np.argmax(y_test, axis=1), np.argmax(y_pred, axis=1), average='micro') 
+    test_F1 = sklearn.metrics.f1_score(np.argmax(y_test, axis=1), 
+                                       np.argmax(y_pred, axis=1),
+                                       average='micro') 
 
     acc = np.mean(np.argmax(y_test, axis=1) == np.argmax(y_pred, axis=1))
-
-    with open(os.path.join(output_fig, "output_metrics_"+naming+'.txt'), "a") as f:
+    
+    with open(os.path.join(output_fig, fname + "_output_metrics"+'.txt'), "a") as f:
         print("F1: " + str(test_F1), file=f)
         print("Accuracy: " + str(acc), file=f)       
         
@@ -390,35 +472,65 @@ def one_hot_encoder(df_merge):
         Xpad[s, 0:seq_len, :] = x
     return Xpad
 
-def one_hot_model(df_merge, Xpad, epochs, batches, output_path):
-    naming = str(df_merge.shape[0])+'_totreads_'+str(epochs)+'epochs_'+str(batches)+'batches_'
+def one_hot_model(data_train, data_val, encoder_tra, encoder_val, epochs, batches, rank, output_path):
+    naming = str(data_train.shape[0])+'_totreads_'+str(epochs)+'epochs_'+str(batches)+'batches_'
     masking_value = -1
-    max_seq_len = max(len(x) for x in df_merge['one_hot_tensor'].tolist())
+    max_seq_len = max(len(x) for x in data_train['one_hot_tensor'].tolist())
     
-    y = df_merge['taxa_order'] #df_merge['taxa_order_GE']
+    if rank == "species":
+        y = data_train['taxa_order']
+        y_val = data_val['taxa_order']
+    elif rank == "genus":
+        y = data_train['taxa_order_GE']
+        y_val = data_val['taxa_order_GE']
+    else:
+        print("Rank not recognized. Please select 'species' or 'genus'")
 
     encoder = LabelEncoder()
     encoder.fit(y)
     encoded_y = encoder.transform(y)
 
-    # convert integers to dummy variables (i.e. one hot encoded)
-    dummy_y = to_categorical(encoded_y)
+    encoder2 = LabelEncoder()
+    encoder2.fit(y_val)
+    encoded_y_val = encoder2.transform(y_val)
 
+    # convert integers to dummy variables (i.e. one hot encoded)
+    cat_y = to_categorical(encoded_y)
+    cat_y_val = to_categorical(encoded_y_val)
+
+    print(cat_y)
+    print(cat_y_val)
+
+    print(type(cat_y))
+    print(type(cat_y_val))
+    
+    print(cat_y.shape[1])
+    print(cat_y_val.shape[1])
+    breakpoint()
     # Save Encoder
     # To save DL model/embedder
-    output_encoder = output_path + '/encoder_' + naming + '.h5'
+    output_encoder = output_path + '/tra_encoder_' + naming + '.h5'
     pickle.dump(encoder, open(output_encoder, 'wb'))
+    
+    output_encoder_val = output_path + '/val_encoder_' + naming + '.h5'
+    pickle.dump(encoder2, open(output_encoder_val, 'wb'))
 
-    assert set(dummy_y.sum(axis=1)) == {1}
+    assert set(cat_y.sum(axis=1)) == {1}
     # Initialize model and printout summary
     # Number of taxa to classify
-    n_classes = dummy_y.shape[1]
+    n_classes = cat_y.shape[1]
 
-    model = FragmentClassifier(Xpad, dummy_y, test_fraction=0.2, 
-                               epochs=epochs, batch_size=batches,
-                               n_classes=n_classes, Max_seq_len=max_seq_len,
+    model = FragmentClassifier(input_dna = encoder_tra, 
+                               input_taxa = cat_y, 
+                               data_val = encoder_val, 
+                               classes_val = cat_y_val, 
+                               test_fraction=0.2, 
+                               epochs=epochs, 
+                               batch_size=batches,
+                               n_classes=n_classes, 
+                               Max_seq_len=max_seq_len,
                                Masking_value=masking_value, 
-                               output_model=output_path + '/model_' + naming + '.h5')
+                               output_model=output_path + '/model_' + naming + '.keras')
     return model
 
 
