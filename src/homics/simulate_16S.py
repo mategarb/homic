@@ -104,7 +104,7 @@ def prune_references(probe_seq, mic_ref_seqs):
         mic_ref_seqs[key] = value[1][0:coords_df.iloc[0,0]]
     return mic_ref_seqs, scores_vec
 
-def training_data(n_reads, output_path, score_thr, mic_refs, r2_header_lines, r2_read_lines, r2_qual_lines):
+def training_data(n_reads, output_path, score_thr, mic_refs, r2_header_lines, r2_read_lines, r2_qual_lines, impute_errors):
     
     random_species_list = [] # To store what genus+species got picked
     random_only_species_list = [] # To store what genus+species got picked
@@ -155,11 +155,16 @@ def training_data(n_reads, output_path, score_thr, mic_refs, r2_header_lines, r2
                 
                 if not not scores_vec:
                     all_scores.append(np.nanmean(scores_vec)/R2_length)
-                    if np.nanmean(scores_vec)/R2_length < score_thr:
+                    if np.nanmean(scores_vec)/R2_length <= score_thr:
                         random_species_list.append(header.rstrip()+"|"+random_key) 
                         # it will be used as gold standard reference
                         random_only_species_list.append(random_key)
 
+                        if impute_errors:
+                            errors_no = [0, 1] # no error, 1 error
+                            num_errors = random.choices(errors_no, weights=(1, 2), k=1)
+                            random_sequence_chopped = impute_seq_error(random_sequence_chopped, num_errors)
+                        
                         # save to output file
                         print(header.rstrip(), file = f) # fastq header
                         print(random_sequence_chopped, file = f) # randomly picked sequence from part of the 16S gene
@@ -202,7 +207,7 @@ def validation_data(n_reads, output_path, mic_refs, species_tra, r2_header_lines
         if key not in species_tra:
             mic_refs.pop(key)
     
-    r2_output_file_name = os.path.join(output_path + '_val_simulated.fastq')
+    r2_output_file_name = os.path.join(output_path + '_' + str(n_reads) + 'ps_val_simulated.fastq')
     start_vec = []
     avg_read_len = sum(map(len, r2_read_lines))/len(r2_read_lines) # average read length in the data
     #def create_simulated_data(i):
@@ -232,9 +237,9 @@ def validation_data(n_reads, output_path, mic_refs, species_tra, r2_header_lines
                     random_sequence_chopped = impute_seq_error(random_sequence_chopped, num_errors)
                 else:
                     # Randomly select reads which shall include a simulated seq error
-                    # zero, one or two errors per read
-                    errors_no = [0, 1, 2] # no error, 1 error, 2 errors
-                    num_errors = random.choices(errors_no, weights=(4,4,2), k=1)
+                    # zero or one errors per read
+                    errors_no = [0, 1] # no error, 1 error
+                    num_errors = random.choices(errors_no, weights=(1, 2), k=1)
                     random_sequence_chopped = impute_seq_error(random_sequence_chopped, num_errors)
                     
                 qual_seq = r2_qual_lines[i].rstrip()
@@ -252,7 +257,7 @@ def validation_data(n_reads, output_path, mic_refs, species_tra, r2_header_lines
 
     # Print the genus+species list to output file
 
-    gsp_output_file_name = os.path.join(output_path + '_val_genus_species.txt')
+    gsp_output_file_name = os.path.join(output_path + '_' + str(n_reads) + 'ps_val_genus_species.txt') # ps - per species
 
     with open(gsp_output_file_name, 'a+') as f:
         for item in random_species_list:

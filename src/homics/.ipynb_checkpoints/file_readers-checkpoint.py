@@ -2,6 +2,10 @@
 All functions for reading the files
 """
 import pickle
+import os
+import pandas as pd
+import re
+import ete3
 #####################################################################################################
 #####################################################################################################
 #####################################################################################################
@@ -40,7 +44,7 @@ def fasta(path):
 #####################################################################################################
 #####################################################################################################
 #####################################################################################################
-################################# FASTQ READER
+################################# FASTQ READER, DL LEARNING SCRIPT
 
 def fastq(path):
 
@@ -76,6 +80,22 @@ def fastq(path):
 #####################################################################################################
 #####################################################################################################
 #####################################################################################################
+################################# FASTQ READER, DL EVALUATION SCRIPT
+
+def fastq2(path):
+    fq_d = {}
+    for file in os.listdir(path):
+        if file.endswith(".fastq"): # _matchBarcode
+            name = file.split('_R2')[0]
+            
+            fastq = parser(os.path.join(path, file))
+    
+            fq_d[name] = fastq
+    return fq_d
+    
+#####################################################################################################
+#####################################################################################################
+#####################################################################################################
 ################################# GOLD STANDARD SPECIES NAMES
 
 def species_outcome(path):
@@ -86,20 +106,166 @@ def species_outcome(path):
             header = line.split(' ')[0][1:]
             sp = line.split('|')[1].rstrip()
             ref_d[header] = sp
-            print(header)
-            print(sp)
     return ref_d
 
 #####################################################################################################
 #####################################################################################################
 #####################################################################################################
-################################# TAXA INFO 
+################################# TAXA INFO, DL MODEL TRAINING
 
 def load_pickle(path):
     with open(path, 'rb') as f:
         ge_sp_dict = pickle.load(f)
     return ge_sp_dict
 
+#####################################################################################################
+#####################################################################################################
+#####################################################################################################
+################################# TAXA INFO, DL MODEL EVALUATION
+
+# fastq header
+# @<instrument>:<run number>:<flowcell ID>:<lane>:<tile>:<x-pos>:<y-pos> <read>:<is filtered>:<control number>:<sample number>
+
+# from repo: @M01581:1513:000000000-G54WL:1:1102:17323:1440 2:N:0:TTAGGC
+# from SRA: @SRR25456942.1 M01581:1638:000000000-DCD22:1:1102:14231:2672 length=150 Blautia argi
+
+# Load pickle file
+def make_benchmark_table(path, taxa_info_path, reads, krk_preds, bcodes):
+    rows_nams = pd.read_csv(path, sep=' ', header = None,usecols=[1], engine='python', names = ['fastq']) # full header only
+    info = pd.read_csv(path, sep='[ ,:,|]', header = None, usecols=[5, 6, 7, 9, 10], names = ['tile', 'x', 'y','taxa1', 'taxa2'], engine='python') # new files, sra-based
+    # info = pd.read_csv(path, sep='[ ,:,|]', header = None, usecols=[4, 5, 6, 11, 12], names = ['tile', 'x', 'y','taxa1', 'taxa2'], engine='python') # old files
+    
+    info['read'] = reads
+    info['taxa_predictions'] = krk_preds
+    #info.index = rows_nams.iloc[:, 0] # rename rows so they include fastq header
+    info = pd.concat([rows_nams, info], axis=1)
+    
+    info['taxa'] = info['taxa1'] + ' ' + info['taxa2']
+    info.drop(columns=['taxa1', 'taxa2'])
+
+    info.loc[info["taxa_predictions"] == "[Eubacterium] eligens", "taxa"] = 'Lachnospira eligens'
+    info.loc[info["taxa"] == "[Eubacterium] eligens", "taxa"] = 'Lachnospira eligens' # cause it has different names
+    #info['read'] = info['fastq'].map(fq_d[name])
+    #ref_df = pd.DataFrame.from_dict(ref_d, orient='index', columns=['taxa'])
+    ge_sp_dict = load_pickle(taxa_info_path)
+    info['taxa_order'] = info['taxa'].map(ge_sp_dict)
+    info['taxa_order'] = info['taxa_order'].str.join(',')
+
+    info['taxa_order'] = info.apply(lambda row: change_order(row['taxa_order']), axis=1)
+    info['taxa_order'] = info.apply(lambda row: rm_species(row['taxa_order']), axis=1)
+
+    taxids = info['taxa_predictions']
+    ncbi = ete3.NCBITaxa()
+    
+    taxon_id = set(taxids.to_list())
+
+    #print(taxon_id)
+    #lineage = ncbi.get_lineage(taxon_id)
+
+    lineage_df = {} #pd.DataFrame()
+    for tmp_taxid in taxon_id:
+        if str(tmp_taxid.strip()) != '0':
+            tmp_lineage = pd.Series({rank : taxon
+                                     for taxon, rank in ncbi.get_rank(
+                                         ncbi.get_lineage(tmp_taxid)).items()
+                                    })
+            tmp_lineage = pd.Series(index=tmp_lineage.index,
+                                    data =ncbi.translate_to_names(tmp_lineage))
+        
+            tmp_lineage.name = tmp_taxid
+            tmp_lineage.fillna(value='unassigned')
+            lineage_df[tmp_taxid] = tmp_lineage#pd.concat([lineage_df, tmp_lineage], axis=1)
+
+        else:
+            nms = ['no rank', 'superkingdom', 'phylum', 'class', 'family', 'genus', 'kingdom', 'species', 'order']
+            lineage_df[tmp_taxid] = pd.DataFrame(['unassigned'] * len(nms), index=nms)
+            #lineage_df = pd.concat([lineage_df, una_df], axis=1)
+
+    tmp_res = list(map(lineage_df.get, taxids.to_list()))
+    lineage_df_all = pd.concat(tmp_res, axis=1, ignore_index=True)
+    lineage_df_all = lineage_df_all.loc[['superkingdom', 'phylum', 'class', 'order', 'family', 'genus','species']]
+    lineage_df_all = lineage_df_all.T
+    lineage_df_all = lineage_df_all.fillna('unassigned')
+    info = pd.concat([info, lineage_df_all], axis=1)
+
+
+    bcodes_rand = bcodes.sample(n=info.shape[0], replace=True)
+    bcodes_rand = bcodes_rand.reset_index(drop=True)
+    
+    info = pd.concat([info, bcodes_rand], axis=1)
+    
+    # For truth - get fastq headers per spot
+    tmp_d = {}
+    info_grouped = info.groupby(['Bx', 'By'])
+    
+    for label, group in info_grouped:
+        spot = str(label[0]) + 'x' + str(label[1])
+        tmp_d[spot] = group['fastq'].tolist()
+
+    # randomly add barcodes in order to mimic spots, normally it would be done with taggd
+
+    info['Bx'] = info['Bx'].map(str)
+    info['By'] = info['By'].map(str)
+    return tmp_d, info
+
+def load_barcodes(path):
+    bcodes = pd.read_csv(path, delimiter="\t", header = None)
+    bcodes.columns = ['barcode', 'Bx', 'By']
+    return bcodes
+
+def load_kraken2_output(path):
+    info = pd.read_csv(path, delimiter="\t", header = None) # , usecols=[4, 5, 6, 11, 12], names = ['tile', 'x', 'y','taxa1', 'taxa2'],
+    info.columns = ['class', 'read_id', 'species', 'read_length','kmers']
+
+    species_split = info['species'].str.split('taxid', expand=True)
+
+    info['species'] = species_split[0]
+    info['taxid'] = species_split[1]
+
+    #species_split2 = info['species'].str.split(r'[ (]', expand=True)
+    #info['species'] = species_split2[0]
+    info['species'] = info['species'].str.replace(' (', '')
+    info['taxid'] = info['taxid'].str.replace(')', '')
+    return info
+
+def change_order(row):
+    rv_row = row.split(',')
+    rv_row.reverse()
+    return ','.join(rv_row) # return species level
+
+def rm_species(row):
+    rv_row = row.split(',')
+    if len(rv_row) == 7:
+        return ','.join(rv_row[1:]) # return genus level
+    else:
+        return ','.join(rv_row) # return genus level
+
+#####################################################################################################
+#####################################################################################################
+#####################################################################################################
+################################# PARSER
+
+def parser(filename):
+    """
+    Generate a list of tuples (header, read)
+    """
+    fastq_parsed = {}
+    try:
+
+        with open(filename) as fq:
+            header = next(fq)
+            read = next(fq)
+            fastq_parsed[header[1:-1].split(' ')[0]] = read[:-1] 
+            while True:
+                next(fq) # skip + line
+                next(fq) # skip qscore
+                header = next(fq) # store next read header
+                read = next(fq) # store next read seq
+                fastq_parsed[header[1:-1].split(' ')[0]] = read[:-1]
+    except:
+        StopIteration 
+    return fastq_parsed
+    
 # Read in header ref file, ie fastq header is paired with taxa the sequence was made from
 
 #ref_d = {}

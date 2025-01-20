@@ -22,6 +22,7 @@ import random
 import json
 import time
 import pickle
+import ete3
 
 from itertools import islice,tee
 import io
@@ -357,14 +358,51 @@ def evaluation(model, output_fig):
 
 # Load and prepare simulated data
 # Read input fasta file
-def prepare_data(input_fq, ref_d, ge_sp_dict):
+def prepare_data(input_fq, ref_d):
     fasta_d_tmp = parser(input_fq)
 
     # Add taxa order for the species names in dict
     ref_df = pd.DataFrame.from_dict(ref_d, orient='index', columns=['taxa'])
+    ref_df.loc[ref_df["taxa"] == "[Eubacterium] eligens", "taxa"] = 'Lachnospira eligens'
 
-    ref_df['taxa_order'] = ref_df['taxa'].map(ge_sp_dict)
-    ref_df['taxa_order'] = ref_df['taxa_order'].str.join(',')
+    ncbi = ete3.NCBITaxa()
+    taxids = ncbi.get_name_translator(ref_df["taxa"])
+    taxidsf = sum(list(taxids.values()), []) # flatten the list
+    taxids_dict = dict(zip(taxids.keys(), taxidsf)) ## swapping values with keys
+    taxon_id = set(taxidsf)
+
+    #print(taxon_id)
+    #lineage = ncbi.get_lineage(taxon_id)
+
+    lineage_df = {} #pd.DataFrame()
+    for tmp_taxid in taxon_id:
+        if tmp_taxid != 0:
+            tmp_lineage = pd.Series({rank : taxon
+                                     for taxon, rank in ncbi.get_rank(
+                                         ncbi.get_lineage(tmp_taxid)).items()
+                                    })
+            tmp_lineage = pd.Series(index=tmp_lineage.index,
+                                    data =ncbi.translate_to_names(tmp_lineage))
+        
+            tmp_lineage.name = tmp_taxid
+            tmp_lineage.fillna(value='unassigned')
+            lineage_df[tmp_taxid] = tmp_lineage#pd.concat([lineage_df, tmp_lineage], axis=1)
+
+        else:
+            nms = ['no rank', 'superkingdom', 'phylum', 'class', 'family', 'genus', 'kingdom', 'species', 'order']
+            lineage_df[tmp_taxid] = pd.DataFrame(['unassigned'] * len(nms), index=nms)
+    
+    taxids_full = [*map(taxids_dict.get, ref_df["taxa"].tolist())] # mapping between species and tax ids, to get tax ids only
+    tmp_res = list(map(lineage_df.get, taxids_full))
+
+    lineage_df_all = pd.concat(tmp_res, axis=1, ignore_index=True)
+    lineage_df_all = lineage_df_all.loc[['superkingdom', 'phylum', 'class', 'order', 'family', 'genus','species']]
+    lineage_df_all = lineage_df_all.T
+    lineage_df_all = lineage_df_all.fillna('unassigned')
+    lineage_df_all = lineage_df_all.iloc[:, ::-1] # reversing the order
+    
+    #ref_df['taxa_order'] = ref_df['taxa'].map(ge_sp_dict)
+    ref_df['taxa_order'] = lineage_df_all.apply(','.join, axis=1).tolist()
 
     ref_d = ref_df.to_dict('index')
     ### Prepare simulated data ###
@@ -473,7 +511,7 @@ def one_hot_encoder(df_merge):
     return Xpad
 
 def one_hot_model(data_train, data_val, encoder_tra, encoder_val, epochs, batches, rank, output_path):
-    naming = str(data_train.shape[0])+'_totreads_'+str(epochs)+'epochs_'+str(batches)+'batches_'
+    naming = str(data_train.shape[0])+'_totreads_'+str(epochs)+'epochs_'+str(batches)+'batches'
     masking_value = -1
     max_seq_len = max(len(x) for x in data_train['one_hot_tensor'].tolist())
     
@@ -498,15 +536,6 @@ def one_hot_model(data_train, data_val, encoder_tra, encoder_val, epochs, batche
     cat_y = to_categorical(encoded_y)
     cat_y_val = to_categorical(encoded_y_val)
 
-    print(cat_y)
-    print(cat_y_val)
-
-    print(type(cat_y))
-    print(type(cat_y_val))
-    
-    print(cat_y.shape[1])
-    print(cat_y_val.shape[1])
-    breakpoint()
     # Save Encoder
     # To save DL model/embedder
     output_encoder = output_path + '/tra_encoder_' + naming + '.h5'

@@ -202,7 +202,7 @@ def validation_data(n_reads, output_path, mic_refs, species_tra, r2_header_lines
         if key not in species_tra:
             mic_refs.pop(key)
     
-    r2_output_file_name = os.path.join(output_path + '_val_simulated.fastq')
+    r2_output_file_name = os.path.join(output_path + '_' + str(n_reads) + 'ps_val_simulated.fastq')
     start_vec = []
     avg_read_len = sum(map(len, r2_read_lines))/len(r2_read_lines) # average read length in the data
     #def create_simulated_data(i):
@@ -232,9 +232,9 @@ def validation_data(n_reads, output_path, mic_refs, species_tra, r2_header_lines
                     random_sequence_chopped = impute_seq_error(random_sequence_chopped, num_errors)
                 else:
                     # Randomly select reads which shall include a simulated seq error
-                    # zero, one or two errors per read
-                    errors_no = [0, 1, 2] # no error, 1 error, 2 errors
-                    num_errors = random.choices(errors_no, weights=(4,4,2), k=1)
+                    # zero or one errors per read
+                    errors_no = [0, 1] # no error, 1 error
+                    num_errors = random.choices(errors_no, weights=(1, 2), k=1)
                     random_sequence_chopped = impute_seq_error(random_sequence_chopped, num_errors)
                     
                 qual_seq = r2_qual_lines[i].rstrip()
@@ -252,7 +252,7 @@ def validation_data(n_reads, output_path, mic_refs, species_tra, r2_header_lines
 
     # Print the genus+species list to output file
 
-    gsp_output_file_name = os.path.join(output_path + '_val_genus_species.txt')
+    gsp_output_file_name = os.path.join(output_path + '_' + str(n_reads) + 'ps_val_genus_species.txt') # ps - per species
 
     with open(gsp_output_file_name, 'a+') as f:
         for item in random_species_list:
