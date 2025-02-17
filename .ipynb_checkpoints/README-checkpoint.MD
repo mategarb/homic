@@ -11,10 +11,23 @@ import sys
 sys.path.append('/path/to/the/package/folder/src')
 from homic import file_readers, simulate_16S, dl_model
 ```
+ 
+# folders
+
+* src
+    - main scripts of the package
+* tests
+    - examples
+* models
+    - precomputed DL models and encoders for the species specified in the list files/65sp.txt
+* files
+    - collection of small-size input files, including barcodes, reference genomes and species lis
+* imgs
+    - images for the package, e.g. logo
 
 # examples
 
-The example scripts for running the homic function, can be found in test folder.
+The example scripts for running the homic function, can be found in the "tests" folder.
 It contains three examples:
 
 * e1_simulate_data.py
@@ -23,10 +36,3 @@ It contains three examples:
     - example for running training to generate deep learning model
 * e3_run_dl_evaluation.py
     - benchmarkign the DL model against Kraken2
- 
-# folders
-
-* models
-    - precomputed DL models and encoders for the species specified in the list files/65sp.txt
-* files
-    - collection of small-size input files, including barcodes, reference genomes and species list
