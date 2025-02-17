@@ -130,33 +130,68 @@ def load_pickle(path):
 # from SRA: @SRR25456942.1 M01581:1638:000000000-DCD22:1:1102:14231:2672 length=150 Blautia argi
 
 # Load pickle file
-def make_benchmark_table(path, taxa_info_path, reads, krk_preds, bcodes):
+def make_benchmark_table(path, reads, krk_preds, bcodes):
     rows_nams = pd.read_csv(path, sep=' ', header = None,usecols=[1], engine='python', names = ['fastq']) # full header only
     info = pd.read_csv(path, sep='[ ,:,|]', header = None, usecols=[5, 6, 7, 9, 10], names = ['tile', 'x', 'y','taxa1', 'taxa2'], engine='python') # new files, sra-based
     # info = pd.read_csv(path, sep='[ ,:,|]', header = None, usecols=[4, 5, 6, 11, 12], names = ['tile', 'x', 'y','taxa1', 'taxa2'], engine='python') # old files
     
     info['read'] = reads
-    info['taxa_predictions'] = krk_preds
+    info['kraken_preds'] = krk_preds
     #info.index = rows_nams.iloc[:, 0] # rename rows so they include fastq header
     info = pd.concat([rows_nams, info], axis=1)
     
-    info['taxa'] = info['taxa1'] + ' ' + info['taxa2']
+    info['truth_taxa'] = info['taxa1'] + ' ' + info['taxa2']
     info.drop(columns=['taxa1', 'taxa2'])
 
-    info.loc[info["taxa_predictions"] == "[Eubacterium] eligens", "taxa"] = 'Lachnospira eligens'
-    info.loc[info["taxa"] == "[Eubacterium] eligens", "taxa"] = 'Lachnospira eligens' # cause it has different names
+    info.loc[info["kraken_preds"] == "[Eubacterium] eligens", "truth_taxa"] = 'Lachnospira eligens'
+    info.loc[info["truth_taxa"] == "[Eubacterium] eligens", "truth_taxa"] = 'Lachnospira eligens' # cause it has different names
     #info['read'] = info['fastq'].map(fq_d[name])
     #ref_df = pd.DataFrame.from_dict(ref_d, orient='index', columns=['taxa'])
-    ge_sp_dict = load_pickle(taxa_info_path)
-    info['taxa_order'] = info['taxa'].map(ge_sp_dict)
-    info['taxa_order'] = info['taxa_order'].str.join(',')
-
-    info['taxa_order'] = info.apply(lambda row: change_order(row['taxa_order']), axis=1)
-    info['taxa_order'] = info.apply(lambda row: rm_species(row['taxa_order']), axis=1)
-
-    taxids = info['taxa_predictions']
+    #ge_sp_dict = load_pickle(taxa_info_path)
+    ###### for gold truth from synthetic ###### ###### ###### ######
     ncbi = ete3.NCBITaxa()
+    taxids = ncbi.get_name_translator(info["truth_taxa"])
+    taxidsf = sum(list(taxids.values()), []) # flatten the list
+    taxids_dict = dict(zip(taxids.keys(), taxidsf)) ## swapping values with keys
+    taxon_id = set(taxidsf)
+
+    #print(taxon_id)
+    #lineage = ncbi.get_lineage(taxon_id)
+
+    lineage_df = {} #pd.DataFrame()
+    for tmp_taxid in taxon_id:
+        if tmp_taxid != 0:
+            tmp_lineage = pd.Series({rank : taxon
+                                     for taxon, rank in ncbi.get_rank(
+                                         ncbi.get_lineage(tmp_taxid)).items()
+                                    })
+            tmp_lineage = pd.Series(index=tmp_lineage.index,
+                                    data =ncbi.translate_to_names(tmp_lineage))
+        
+            tmp_lineage.name = tmp_taxid
+            tmp_lineage.fillna(value='unassigned')
+            lineage_df[tmp_taxid] = tmp_lineage#pd.concat([lineage_df, tmp_lineage], axis=1)
+
+        else:
+            nms = ['no rank', 'superkingdom', 'phylum', 'class', 'family', 'genus', 'kingdom', 'species', 'order']
+            lineage_df[tmp_taxid] = pd.DataFrame(['unassigned'] * len(nms), index=nms)
     
+    taxids_full = [*map(taxids_dict.get, info["truth_taxa"].tolist())] # mapping between species and tax ids, to get tax ids only
+    tmp_res = list(map(lineage_df.get, taxids_full))
+
+    lineage_df_all = pd.concat(tmp_res, axis=1, ignore_index=True)
+    lineage_df_all = lineage_df_all.loc[['superkingdom', 'phylum', 'class', 'order', 'family', 'genus','species']]
+    lineage_df_all = lineage_df_all.T
+    lineage_df_all = lineage_df_all.fillna('unassigned')
+    lineage_df_all = lineage_df_all.iloc[:, ::-1] # reversing the order
+    
+    #ref_df['taxa_order'] = ref_df['taxa'].map(ge_sp_dict)
+    info['truth_taxa_order'] = lineage_df_all.apply(','.join, axis=1).tolist()
+    info['truth_taxa_order'] = info.apply(lambda row: change_order(row['truth_taxa_order']), axis=1)
+    info['truth_taxa_order'] = info.apply(lambda row: rm_species(row['truth_taxa_order']), axis=1)
+
+    ###### for kraken2 ###### ###### ###### ######
+    taxids = info['kraken_preds']
     taxon_id = set(taxids.to_list())
 
     #print(taxon_id)

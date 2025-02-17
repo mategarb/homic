@@ -15,11 +15,10 @@ path2 = "/gpfs/commons/home/mgarbulowski/proj_shm/inputs/SRR25456942_D2_2.fastq"
 path3 = "/gpfs/commons/home/mgarbulowski/proj_shm/inputs/SRR25456944_C2_2.fastq" # fastq 2
 surface_probe = "GGATTAGATACCCBDGTAGTCGT"
 
-taxa_info_path = "/gpfs/commons/home/mgarbulowski/proj_shm/inputs/taxa_names_dict.pkl"
 
 # outs
 output_path_folder = '/gpfs/commons/home/mgarbulowski/proj_shm/outputs'
-output_path = output_path_folder + "/SRR25456942_e"
+output_path = output_path_folder + "/SRR25456942"
 
 figs_path = "/gpfs/commons/home/mgarbulowski/proj_shm/figs"
 #####################################################################################################
@@ -41,29 +40,29 @@ print("Total organisms in ref: ", len(mic_refs))
 
 startd = time.time()
 # no error
-impute_errors = True
-algn_scores, starts, quals, species_list  = simulate_16S.training_data(500000, output_path, 1, # 0.77 est. as mean + std 
-                           mic_refs, r2_header_lines, r2_read_lines, r2_qual_lines, impute_errors) # n (500000) in total
+#impute_errors = True
+#algn_scores, starts, quals, species_list = simulate_16S.training_data(500000, output_path, 1, # 0.77 est. as mean + std 
+#                           mic_refs, r2_header_lines, r2_read_lines, r2_qual_lines, impute_errors) # n (500000) in total
 
-breakpoint()
+#breakpoint()
 
-print("Mean:")
-print(np.mean(algn_scores))
-print("Median:")
-print(np.median(algn_scores))
-print("Std:")
-print(np.std(algn_scores))
+#print("Mean:")
+#print(np.mean(algn_scores))
+#print("Median:")
+#print(np.median(algn_scores))
+#print("Std:")
+#print(np.std(algn_scores))
 
-endd = time.time()
-print("Time of data simulation[min.]: ")
-print((endd - startd)/60)
-make_plots.alignment_scores(algn_scores, figs_path)
-make_plots.data_stats(starts, quals, 151, figs_path)
+#endd = time.time()
+#print("Time of data simulation[min.]: ")
+#print((endd - startd)/60)
+#make_plots.alignment_scores(algn_scores, figs_path)
+#make_plots.data_stats(starts, quals, 151, figs_path)
 
 # Sequence error rate 
 errorR = 0.001
 
-species_tra = species_list
+species_tra = None #species_list
 nsp = 5000
 simulate_16S.validation_data(nsp, output_path, mic_refs, species_tra,
                              r2_header_lines, r2_read_lines, r2_qual_lines, errorR) # n e.g. 2000 per species (not in total)

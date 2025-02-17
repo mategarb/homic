@@ -105,8 +105,41 @@ class FragmentClassifier(object):
                
         return x_train, x_test, y_train, y_test, x_v, y_v
 
-    def architecture(self):
+    def architecture2(self): # GRU
         
+        inp = Input(shape=(None , 5))        
+        #mask = Masking(mask_value=self.masking_value, input_shape=(self.max_seq_len, 5))(inp)
+        
+        conv5 = layers.Conv1D(filters=64, kernel_size=15, activation='relu', padding="same")(inp)#(mask) 
+        conv7 = layers.Conv1D(filters=64, kernel_size=17, activation='relu', padding="same")(inp)#(mask) 
+        conv11 = layers.Conv1D(filters=64, kernel_size=19, activation='relu', padding="same")(inp)#(mask)
+        conv13 = layers.Conv1D(filters=64, kernel_size=23, activation='relu', padding="same")(inp)#(mask)
+        l = Concatenate()([conv5, conv7])
+        l = Concatenate()([l, conv11])
+        l = Concatenate()([l, conv13])
+        l = Dropout(rate=0.5)(l)
+
+        # Add 2 bidirectional GRUs
+        l = layers.Bidirectional(keras.layers.GRU(64, return_sequences=True))(l)
+        l = layers.Bidirectional(keras.layers.GRU(32))(l)
+        l = layers.Dropout(rate=0.4)(l)
+        
+        l = layers.Dense(64, activation='relu')(l) #16
+        l = layers.Dropout(rate=0.1)(l)
+        l = layers.Dense(32, activation='relu')(l) #8
+        decision = layers.Dense(self.input_taxa.shape[1], activation='softmax')(l)
+        
+        model = Model(inputs=inp, outputs=decision)
+        model.compile(optimizer='Adam', #'Adam'
+                      loss=keras.losses.CategoricalFocalCrossentropy(), # 'categorical_crossentropy'
+                      metrics=['categorical_accuracy','AUC','f1_score']) 
+                
+        ### Point class to models
+        #self.embedder = emb2 #embedder
+        self.classifier = model
+
+    def architecture(self): # LSTM
+
         inp = Input(shape=(None , 5))        
         #mask = Masking(mask_value=self.masking_value, input_shape=(self.max_seq_len, 5))(inp)
         
@@ -138,43 +171,7 @@ class FragmentClassifier(object):
         #self.embedder = emb2 #embedder
         self.classifier = model
 
-    def architecture2(self):
-
-        inp = Input(shape=(None, 5))
-        #mask = Masking(mask_value=self.masking_value, input_shape=(self.max_seq_len, 5))(inp)
-        #embed = Embedding(self.max_seq_len, 5)(inp)
-        
-        #keras.layers.Reshape((3, 4))(x)
-        #lstm = LSTM(32, input_shape=(self.max_seq_len, 5), return_sequences=True)(embed, mask=mask)
-        l = layers.Conv1D(filters=64, kernel_size=15, activation='relu', padding="same")(inp) # for 1D data
-        l = layers.Conv1D(filters=64, kernel_size=20, activation='relu', padding="same")(l) 
-        #l = layers.Conv1D(filters=64, kernel_size=19, activation='relu', padding="same")(mask)
-        #l = layers.Conv1D(filters=64, kernel_size=23, activation='relu', padding="same")(mask)
-
-        #l = layers.GlobalMaxPooling1D()(l)
-        #l = layers.Dropout(rate=0.1)(l) # randomly sets values to 0 to avoid overfitting
-
-        # Add 2 bidirectional LSTMs
-        #l = layers.Bidirectional(LSTM(64, return_sequences=True))(l)
-        l = layers.Bidirectional(LSTM(64))(l)
-        #l = layers.Dropout(rate=0.25)(l)
-        
-        l = layers.Dense(64, activation='relu')(l) #16
-        l = layers.Dropout(rate=0.25)(l)
-        l = layers.Dense(32, activation='relu')(l) #8
-        l = layers.Dropout(rate=0.15)(l)
-        predictions = layers.Dense(self.input_taxa.shape[1], activation='softmax', name="predictions")(l) # "sigmoid"
-        
-        model = keras.Model(inputs=inp, outputs=predictions)
-        model.compile(optimizer='Adam', #'Adam'
-                      loss=keras.losses.CategoricalFocalCrossentropy(), 
-                      metrics=['categorical_accuracy','AUC','f1_score']) 
-            
-                        
-        ### Point class to models
-        #self.embedder = emb1 #embedder
-        self.classifier = model
-        
+    
     def train(self):
         classifier = self.classifier
         #embedder = self.embedder not used anywhere

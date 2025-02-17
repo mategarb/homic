@@ -5,6 +5,7 @@ import matplotlib
 import matplotlib.pyplot as plt
 import matplotlib.gridspec as gridspec
 import seaborn as sns
+import pandas as pd
 #####################################################################################################
 #####################################################################################################
 #####################################################################################################
@@ -106,7 +107,158 @@ def metrics(history, figs_path):
           # Save the plot
     fname = time.strftime("%Y%m%d-%H%M%S")
     plt.savefig(figs_path + "/" + fname + '_metrics.png')
+
+def bench_barplot(pearson_d, taxa_orders, path, mtype):
+
+    p_stats = {}
+    sd_stats = {}
+    for itp, tp in enumerate(['DL model', 'Kraken2']):
+        pl=[]
+        cl=[]
+        ol=[]
+        fl=[]
+        gl=[]
+        sl=[]
+        l = [pl, cl, ol, fl, gl, sl]
+    
+        for k,v in pearson_d.items():
+    
+            for i, tx in enumerate(taxa_orders[:-1]):
+                try:
+                    l[i].append(v[tx][itp])
+                except KeyError:
+                    continue
+        mean_l = []
+        sd_l = []
+        for i, il in enumerate(l):
+            mean_l.append(round(sum(il) / len(il), 2))
+            sd_l.append(statistics.stdev(il))
+        p_stats[tp] = mean_l
+        sd_stats[tp] = sd_l
+    
+    p_stats['taxa_order'] = taxa_orders[:-1]
+    sd_stats['taxa_order'] = taxa_orders[:-1]
+    
+    p_df = pd.DataFrame(p_stats)
+    p_df= pd.melt(p_df, id_vars=['taxa_order'], value_vars=['DL model', 'Kraken2'])
+    sd_df = pd.DataFrame(sd_stats)
+    sd_df = pd.melt(sd_df, id_vars=['taxa_order'], value_vars=['DL model', 'Kraken2'])
+
+    P_stats = p_df
+    P_stats['sdw'] = sd_df['value']
+    #P_stats = pd.concat(P_stats)
+    P_stats.reset_index(inplace=True)
+    # Plot
+    # for a 2x3 subplot
+    axes = []
+    for row_idx in range(0,1):
+        for col_idx in range(0,1):
+            ax = plt.subplot2grid((1, 1), (row_idx, col_idx))
+            axes.append(ax)
+    ax=axes[0]
+    P_stats = P_stats.iloc[::-1] # reverse, to have species last
+
+    #sde = P_stats['sdw'].tolist()
+    #print(sde)
+    #yerrv = []
+
+    # Append all elements from the first list
+    #for val in sde:
+    #    yerrv.append([val,val])
+
+    #breakpoint()
+    palette = {'Kraken2': "#91C0E7", 'DL model': "#F1C77E"}
+    sns.barplot(data=P_stats, x='taxa_order', y='value', hue='variable', ax=ax, palette=palette, gap=0.1) #
+
+
+    x_coords = [p.get_x() + 0.5 * p.get_width() for p in ax.patches]
+    y_coords = [p.get_height() for p in ax.patches]
+
+    for container in ax.containers:
+        ax.bar_label(container, label_type='center')
         
+    ax.set_xlabel("")
+    ax.errorbar(x=x_coords[:-2], y=y_coords[:-2], yerr=P_stats['sdw'], fmt="none", c="k")
+    # Legend
+    L=ax.legend()
+    L.get_texts()[0].set_text('Kraken2')
+    L.get_texts()[1].set_text('Kraken2 + DL model')
+    sns.move_legend(ax, "lower left")
+        
+    if mtype=="pearson":
+
+        ax.set_ylabel("Average Pearson correlation coefficient")
+        fname = time.strftime("%Y%m%d-%H%M%S")
+        plt.savefig(path + fname + '_pearson.png')
+        plt.clf()
+        
+    elif mtype=="accuracy":
+
+        ax.set_ylabel("Average accuracy")
+        ax.set_xlabel("")
+        fname = time.strftime("%Y%m%d-%H%M%S")
+        plt.savefig(path + fname + '_accuracy.png')
+        plt.clf()
+        
+    elif mtype=="precision":
+
+        ax.set_ylabel("Average precision")
+        ax.set_xlabel("")
+        fname = time.strftime("%Y%m%d-%H%M%S")
+        plt.savefig(path + fname + '_precision.png')
+        plt.clf()
+        
+    elif mtype=="recall":
+
+        ax.set_ylabel("Average recall")
+        ax.set_xlabel("")
+        fname = time.strftime("%Y%m%d-%H%M%S")
+        plt.savefig(path + fname + '_recall.png')
+        plt.clf()
+        
+        
+
+
+
+def bray_curtis_bench(braycurtis_d, taxa_orders, path):
+    # Plot BC
+    fig = plt.figure(figsize=(40,10))
+    
+    # for a 2x2 subplot
+    axes = []
+    for row_idx in range(0,2):
+        for col_idx in range(0,3):
+            ax = plt.subplot2grid((2, 3), (row_idx, col_idx))
+            axes.append(ax)
+            
+    bc_df = pd.DataFrame.from_dict(braycurtis_d, orient='index')
+    bc_df = bc_df.iloc[::-1]
+    for i, tx in enumerate(reversed(taxa_orders[:-1])):
+        
+        df2 = pd.DataFrame(bc_df[tx].to_list(), columns=['DL model','Kraken2']).reset_index()
+        ax = axes[i]
+        df3 = pd.melt(df2, id_vars=['index'], value_vars=['DL model','Kraken2'])
+        palette = {'Kraken2': "#91C0E7", 'DL model': "#F1C77E"}
+        sns.lineplot(data=df3, x='index', y='value', hue='variable', ax=ax, palette=palette)
+        ax.set_title(tx, fontsize=25)
+        ax.set_xlabel("Spatial spot", fontsize=25)
+        ax.tick_params(axis='both', which='major', labelsize=25)
+        
+        if i == 0:
+            ax.set_ylabel("Bray-Curtis distance", fontsize=25)
+        else:
+            ax.set_ylabel("")
+        
+        # Legend
+        L=ax.legend(fontsize=25)
+        L.get_texts()[0].set_text('Kraken2 + DL model')
+        L.get_texts()[1].set_text('Kraken2')
+    
+    plt.tight_layout()
+    fname = time.strftime("%Y%m%d-%H%M%S")
+        
+    plt.savefig(path + fname + '_bray-curtis.png')
+
 #print("Done!")
 #print("Average length: ")
 #print(stats.mean(lns))

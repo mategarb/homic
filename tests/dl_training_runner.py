@@ -74,12 +74,12 @@ prep_data_tra_e = dl_model.prepare_data(sim_data_tra_e, species_info_tra_e)
 oh_encoder_tra_e = dl_model.one_hot_encoder(prep_data_tra_e)
 
 # merging both training data sets, no error (0.5 mln) + error (0.5 mln)
-#new_keys = species_info_tra_e.keys().tolist()
-#new_keys = map(( lambda x: x + 'e'), new_keys)
-#species_info_tra_e = dict(zip(new_keys, list(species_info_tra_e.values())))
+# new_keys = species_info_tra_e.keys().tolist()
+# new_keys = map(( lambda x: x + 'e'), new_keys)
+# species_info_tra_e = dict(zip(new_keys, list(species_info_tra_e.values())))
 
-#species_info_tra_all = {**species_info_tra, **species_info_tra_e}
-#print(species_info_tra_all)
+# species_info_tra_all = {**species_info_tra, **species_info_tra_e}
+# print(species_info_tra_all)
 prep_data_tra_dfs = [prep_data_tra, prep_data_tra_e]
 prep_data_tra_all = pd.concat(prep_data_tra_dfs, ignore_index=True)
 
