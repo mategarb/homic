@@ -1,11 +1,12 @@
 [project]
-name = "example_package_YOUR_USERNAME_HERE"
+name = "homic"
 version = "2.0.1"
 authors = [
   { name="Mateusz Garbulowski", email="mateusz.garbulowski@igp.uu.se" },
   { name="Britta Lötstedt" },
+  { name="Sanja Vickovic" },
 ]
-description = "Python package for HOst-MICrobiome Spatial analysis (homics)"
+description = "Python package for HOst-MICrobiome (homic) spatial analysis"
 readme = "README.md"
 requires-python = ">=3.8"
 classifiers = [
