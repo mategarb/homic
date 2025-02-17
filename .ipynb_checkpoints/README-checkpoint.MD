@@ -23,3 +23,10 @@ It contains three examples:
     - example for running training to generate deep learning model
 * e3_run_dl_evaluation.py
     - benchmarkign the DL model against Kraken2
+ 
+# folders
+
+* models
+    - precomputed DL models and encoders for the species specified in the list files/65sp.txt
+* files
+    - collection of small-size input files, including barcodes, reference genomes and species list
