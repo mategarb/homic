@@ -1,8 +1,8 @@
 import time
 import sys
 import tensorflow as tf
-sys.path.append('/gpfs/commons/home/mgarbulowski/shm_package/src')
-from homics import file_readers, simulate_16S, dl_model, make_plots
+sys.path.append('/gpfs/commons/home/mgarbulowski/homnic_package/src')
+from homic import file_readers, simulate_16S, dl_model, make_plots
 import numpy as np
 import pandas as pd
 #################################################################################

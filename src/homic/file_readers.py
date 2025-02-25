@@ -37,7 +37,7 @@ def fasta(path):
         # Get sequence
         else: # find sequence
             new_seq.append(line.rstrip()) # whitspace removal and append of all lines with sequences
-            
+    print("Number of organisms in reference: "+str(len(fasta_dict)))
     return fasta_dict # fasta_dict is a dictionary of 2 element lists (header + sequence)
 
 

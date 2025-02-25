@@ -3,8 +3,8 @@ import os
 import time
 import sys
 import tensorflow.keras as keras
-sys.path.append('/gpfs/commons/home/mgarbulowski/shm_package/src') # to load our package
-from homics import file_readers, dl_evaluation, make_plots
+sys.path.append('/gpfs/commons/home/mgarbulowski/homic_package/src') # to load our package
+from homic import file_readers, dl_evaluation, make_plots
 import numpy as np
 import pandas as pd
 
@@ -112,13 +112,13 @@ pearson_d, braycurtis_d, accuracy_d, precision_d, recall_d = dl_evaluation.merge
 
 
 # Calculate average pearson per taxa level
-path_figs = '/gpfs/commons/home/mgarbulowski/proj_shm/figs/'
-make_plots.bench_barplot(pearson_d, taxa_orders, path_figs, mtype="pearson")
-make_plots.bench_barplot(accuracy_d, taxa_orders, path_figs, mtype="accuracy")
-make_plots.bench_barplot(precision_d, taxa_orders, path_figs, mtype="precision")
-make_plots.bench_barplot(recall_d, taxa_orders, path_figs, mtype="recall")
+#path_figs = '/gpfs/commons/home/mgarbulowski/proj_shm/figs/'
+#make_plots.bench_barplot(pearson_d, taxa_orders, path_figs, mtype="pearson")
+#make_plots.bench_barplot(accuracy_d, taxa_orders, path_figs, mtype="accuracy")
+#make_plots.bench_barplot(precision_d, taxa_orders, path_figs, mtype="precision")
+#make_plots.bench_barplot(recall_d, taxa_orders, path_figs, mtype="recall")
 
-make_plots.bray_curtis_bench(braycurtis_d, taxa_orders, path_figs)
+#make_plots.bray_curtis_bench(braycurtis_d, taxa_orders, path_figs)
 
 #stats_d = dl_evaluation.per_spot_stats(info, reassign_d, fastq_spot_d, taxa_orders)
 #path_csv = '/gpfs/commons/home/mgarbulowski/proj_shm/figs/report_stats_small_val_data.csv'

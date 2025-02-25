@@ -104,7 +104,7 @@ def prune_references(probe_seq, mic_ref_seqs):
         mic_ref_seqs[key] = value[1][0:coords_df.iloc[0,0]]
     return mic_ref_seqs, scores_vec
 
-def training_data(n_reads, output_path, score_thr, mic_refs, r2_header_lines, r2_read_lines, r2_qual_lines):
+def training_data(n_reads, output_path, score_thr, mic_refs, r2_header_lines, r2_read_lines, r2_qual_lines, impute_errors, trunc_range, print_stats):
     
     random_species_list = [] # To store what genus+species got picked
     random_only_species_list = [] # To store what genus+species got picked
@@ -115,7 +115,8 @@ def training_data(n_reads, output_path, score_thr, mic_refs, r2_header_lines, r2
     start_vec = []
     all_scores = []
     qual_vec = [] 
-
+    seq_lns = []
+    
     aligner = Align.PairwiseAligner()
     aligner.mode = "local"
     aligner.match_score = 1.0
@@ -140,10 +141,10 @@ def training_data(n_reads, output_path, score_thr, mic_refs, r2_header_lines, r2
                 # total length - random value
                 start_vec.append(start/(len(random_sequence) - R2_length))
 
-                random_sequence_chopped = random_sequence[start:start + R2_length]
+                random_sequence_read = random_sequence[start:start + R2_length]
                 qual_seq = r2_qual_lines[i].rstrip()
                 qual_vec.append(list(map(ord, list(r2_qual_lines[i]))))
-                seq1 = Seq(random_sequence_chopped)
+                seq1 = Seq(random_sequence_read)
 
                 for key0, value0 in fasta_dict.items():
                     seq2 = Seq(value0)
@@ -155,14 +156,32 @@ def training_data(n_reads, output_path, score_thr, mic_refs, r2_header_lines, r2
                 
                 if not not scores_vec:
                     all_scores.append(np.nanmean(scores_vec)/R2_length)
-                    if np.nanmean(scores_vec)/R2_length < score_thr:
+                    if np.nanmean(scores_vec)/R2_length <= score_thr:
                         random_species_list.append(header.rstrip()+"|"+random_key) 
                         # it will be used as gold standard reference
                         random_only_species_list.append(random_key)
 
+                            
+                        if not (trunc_range[0] == 0 and trunc_range[1] == 0): # truncating the read sequence
+                            truncate_left = round(random.uniform(trunc_range[0],trunc_range[1])*len(random_sequence_read)) # from the left side
+                            truncate_right = round(random.uniform(trunc_range[0],trunc_range[1])*len(random_sequence_read)) # from the right side
+
+                            random_sequence_read_trun = random_sequence_read[truncate_left:(len(random_sequence_read) - truncate_right)]
+                            if len(random_sequence_read_trun) == 0: # in case everything is truncated and empty sequence is left
+                                random_sequence_read_trun = random_sequence_read # take a full sequence without truncation
+                        else:
+                            random_sequence_read_trun = random_sequence_read # do nothing, just pass the read forward
+                            
+                        if impute_errors:
+                            errors_no = [0, 1, 2] # no error, 1 error
+                            num_errors = random.choices(errors_no, weights=(1, 2, 0), k=1)
+                            random_sequence_read_trun = impute_seq_error(random_sequence_read_trun, num_errors)
+                            
                         # save to output file
+                        seq_lns.append(len(random_sequence_read_trun))
+                        
                         print(header.rstrip(), file = f) # fastq header
-                        print(random_sequence_chopped, file = f) # randomly picked sequence from part of the 16S gene
+                        print(random_sequence_read_trun, file = f) # randomly picked sequence from part of the 16S gene
                         print('+', file = f) # strand
                         print(qual_seq, file = f) # quality sequence
                         ii = ii + 1
@@ -178,9 +197,23 @@ def training_data(n_reads, output_path, score_thr, mic_refs, r2_header_lines, r2
     # using Counter to find frequency of elements
     frequency = collections.Counter(random_only_species_list)
 
-    # printing the frequency
-    print("Data generated with ", len(random_species_list)," reads")
-    print("Number of species included in the data: ", len(dict(frequency)))
+    if print_stats:
+        # printing the frequency
+        print("Data generated with ", len(random_species_list), " reads")
+        print("Number of species included in the data: ", len(dict(frequency)))
+    
+        # print alignment statistics
+        print("Average alignment scores:")
+        print(round(np.mean(all_scores), 4))
+        print("Median alignment scores:")
+        print(round(np.median(all_scores), 4))
+        print("Standard deviation alignment scores:")
+        print(round(np.std(all_scores), 4))
+
+        # print average length of reads
+        print("Average reads length:")
+        print(round(np.mean(seq_lns), 4))
+    
     species_list = list(map(lambda x: x, set(random_only_species_list)))
     return all_scores, start_vec, qual_vec, species_list
 
@@ -195,20 +228,31 @@ def training_data(n_reads, output_path, score_thr, mic_refs, r2_header_lines, r2
 ## For each FASTQ header, replace the sequence with randomly picked 16S gene (sequence?)
 ## R2 on this sequence also starts randomly on the sequence (this is dependent on the fragment length)
 
-def validation_data(n_reads, output_path, mic_refs, species_tra, r2_header_lines, r2_read_lines, r2_qual_lines, errorR):
-    random_species_list = [] # To store what genus+species got picked
+def validation_data(n_reads, output_path, mic_refs, r2_header_lines, r2_read_lines, r2_qual_lines, species_tra = None, error_rate = 0.001, error_weights = (1, 2, 0), trunc_range = [0,0], print_stats = True, shuffle = True):
+    
+    random_species_list = [] # To store what genus+species got picked (header)
+    random_only_species_list = [] # To store what genus+species got picked
 
-    for key in list(mic_refs.keys()):
-        if key not in species_tra:
-            mic_refs.pop(key)
+    if shuffle: # shuffle input reads
+        tmp_lst = list(zip(r2_header_lines, r2_read_lines, r2_qual_lines))
+        random.shuffle(tmp_lst)
+        res1, res2, res3 = zip(*tmp_lst)
+        r2_header_lines, r2_read_lines, r2_qual_lines = list(res1), list(res2), list(res3)
+
+    if species_tra is not None: # get rid of species that do not match with training data
+        for key in list(mic_refs.keys()):
+            if key not in species_tra:
+                mic_refs.pop(key)
     
     r2_output_file_name = os.path.join(output_path + '_' + str(n_reads) + 'ps_val_simulated.fastq')
     start_vec = []
+    seq_lns = []
     avg_read_len = sum(map(len, r2_read_lines))/len(r2_read_lines) # average read length in the data
     #def create_simulated_data(i):
     with open(r2_output_file_name, 'a+') as f:
         for key, value in mic_refs.items():            
             random_key = key #random.choice(list(fasta_dict)) # key = species name
+            random_only_species_list.append(random_key)
             random_sequence = value # select nuc. sequence for a given species
             for i, header in enumerate(r2_header_lines):
                 # Randomly pick (species) sequence from the 16S fragment from the dictionary
@@ -223,26 +267,37 @@ def validation_data(n_reads, output_path, mic_refs, species_tra, r2_header_lines
                 # total length - random value
                 start_vec.append(start/(len(random_sequence) - R2_length))
 
-                random_sequence_chopped = random_sequence[start:start + R2_length]
+                random_sequence_read = random_sequence[start:start + R2_length]
+      
+                if not (trunc_range[0] == 0 and trunc_range[1] == 0): # truncating the read sequence
+                    truncate_left = round(random.uniform(trunc_range[0],trunc_range[1])*len(random_sequence_read)) # from the left side
+                    truncate_right = round(random.uniform(trunc_range[0],trunc_range[1])*len(random_sequence_read)) # from the right side
 
-                tot_num_errors = int(avg_read_len * errorR)
-
+                    random_sequence_read_trun = random_sequence_read[truncate_left:(len(random_sequence_read) - truncate_right)]
+                    if len(random_sequence_read_trun) == 0: # in case everything is truncated and empty sequence is left
+                                random_sequence_read_trun = random_sequence_read # take a full sequence without truncation
+                else:
+                    random_sequence_read_trun = random_sequence_read # do nothing, just pass the read forward
+                            
+                tot_num_errors = int(avg_read_len * error_rate)
+                
                 if tot_num_errors > len(r2_read_lines):
                     num_errors = int(tot_num_errors/len(r2_read_lines))
-                    random_sequence_chopped = impute_seq_error(random_sequence_chopped, num_errors)
+                    random_sequence_read_trun = impute_seq_error(random_sequence_read_trun, num_errors)
                 else:
                     # Randomly select reads which shall include a simulated seq error
-                    # zero or one errors per read
-                    errors_no = [0, 1] # no error, 1 error
-                    num_errors = random.choices(errors_no, weights=(1, 2), k=1)
-                    random_sequence_chopped = impute_seq_error(random_sequence_chopped, num_errors)
+                    # zero, one or two errors per read
+                    errors_no = [0, 1, 2] # no error, 1 error
+                    num_errors = random.choices(errors_no, weights=error_weights, k=1)
+                    random_sequence_read_trun = impute_seq_error(random_sequence_read_trun, num_errors)
                     
                 qual_seq = r2_qual_lines[i].rstrip()
-
+                
+                seq_lns.append(len(random_sequence_read_trun))
                 
                 # save to output file
                 print(header.rstrip(), file = f) # fastq header
-                print(random_sequence_chopped, file = f) # randomly picked sequence from part of the 16S gene
+                print(random_sequence_read_trun, file = f) # randomly picked sequence from part of the 16S gene
                 print('+', file = f) # strand
                 print(qual_seq, file = f) # quality sequence
                 
@@ -251,13 +306,27 @@ def validation_data(n_reads, output_path, mic_refs, species_tra, r2_header_lines
                     break
 
     # Print the genus+species list to output file
-
+    # gold truth genus/species list
     gsp_output_file_name = os.path.join(output_path + '_' + str(n_reads) + 'ps_val_genus_species.txt') # ps - per species
 
     with open(gsp_output_file_name, 'a+') as f:
         for item in random_species_list:
             print(item, file = f)
+            
+    # using Counter to find frequency of elements
+    frequency = collections.Counter(random_only_species_list)
 
+    if print_stats:
+        # printing the frequency
+        print("Data generated with ", len(random_species_list), " reads")
+        print("Number of species included in the data: ", len(dict(frequency)))
+
+        # print average length of reads
+        print("Average reads length:")
+        print(round(np.mean(seq_lns), 4))
+    
+    species_list = list(map(lambda x: x, set(random_only_species_list)))
+    return seq_lns, start_vec, species_list, frequency
 
 # sequencing error
 def impute_seq_error(row, num_errors):
@@ -273,7 +342,7 @@ def impute_seq_error(row, num_errors):
         for ind in sam:
             letters_to_draw = ["A", "C", "T", "G"]
             if lst[ind] == "A" or lst[ind] == "T" or lst[ind] == "C" or lst[ind] == "G":
-                letters_to_draw.remove(lst[ind]) # as we don't want to impute the same base
+                letters_to_draw.remove(lst[ind]) # as we don't want to impute the same nucleotide
             letts = iter(random.sample(letters_to_draw, 1))
             lst[ind] = next(letts)
         return "".join(lst)

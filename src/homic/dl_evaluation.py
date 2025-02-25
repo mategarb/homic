@@ -783,6 +783,7 @@ def reassign_classes_per_spot(info, model, encoder):
     test_count = 0
     its_n = 0
     unassigned_by_DL = 0
+    unassigned_by_DL_tot = 0
     unassigned_by_DL_fastq = []
     
     info_coordXY = info.loc[:,['Bx','By']]
@@ -801,7 +802,7 @@ def reassign_classes_per_spot(info, model, encoder):
     
             taxa_order = info_xy[reversed(['superkingdom', 'phylum', 'class', 'order', 'family', 'genus','species'])]
             taxa_order = taxa_order[[x for x in taxa_order.columns]].apply(lambda x: ','.join(x), axis = 1)
-            y_taxaorder = taxa_order.tolist() # collect taxa info
+            y_taxaorder = taxa_order.tolist() # collect taxa info, Kraken2
 
             fastqH = info_xy['fastq'].tolist()
             
@@ -813,22 +814,20 @@ def reassign_classes_per_spot(info, model, encoder):
     
             for i, taxon in enumerate(y_taxaorder): # iterate over kraken output
                 if taxon.startswith('unassigned'): # in other words, if spiecies was not classified by Kraken2 swap to DL
-                    new_taxa = rv_predictions[i]
-    
-                    # If unassigned by DL model, can this really happen? isn't the dl model always giving some answer?
-                    if new_taxa == '':
-                        new_taxa = unassigned_string
-                        unassigned_by_DL += 1
-                        unassigned_by_DL_fastq.append(fastqH[i])
-    
+                    new_taxa = rv_predictions[i] # when unassigned, choose from DL
+
                     new_taxaorder.append(new_taxa)
                 else:
+                    if taxon == rv_predictions[i]: # checking the overlap between Kraken2 and DL
+                        unassigned_by_DL += 1 
+                        unassigned_by_DL_tot += 1
+                        unassigned_by_DL_fastq.append(fastqH[i])
+                    else:
+                        unassigned_by_DL_tot += 1
+    
                     new_taxaorder.append(taxon) # keep the one from kraken2
-            
     
             newcluster_d[spot_coord] = dict(Counter(new_taxaorder))
-
-    
             reassign_d[spot_coord] = pd.DataFrame({'fastq':fastqH, 'Predicted':new_taxaorder, 'Kraken2':y_taxaorder})
 
             cluster_l.append(newcluster_d)
@@ -837,7 +836,7 @@ def reassign_classes_per_spot(info, model, encoder):
         #if its_n==10:
         #    break
 
-    print("Unassigned by DL: " + str(unassigned_by_DL))
+    print("Common between Kraken2 & DL: " + str(round(unassigned_by_DL/unassigned_by_DL_tot * 100, 2)))
     return cluster_l, reassign_d
 
 
