@@ -9,14 +9,14 @@ import numpy as np
 ################################# I/O paths and sequences
 
 # inps
-path1 = "/gpfs/commons/home/mgarbulowski/proj_shm/outputs/16S_rr.fa" # fasta
+path1 = "/gpfs/commons/home/mgarbulowski/proj_shm/outputs/references/16S_rr_62species_microbiome_only.fa" # fasta
 path2 = "/gpfs/commons/home/mgarbulowski/proj_shm/inputs/raw_data/SRR25456942_D2_2.fastq" # fastq 1
 path3 = "/gpfs/commons/home/mgarbulowski/proj_shm/inputs/raw_data/SRR25456944_C2_2.fastq" # fastq 2
 surface_probe = "GGATTAGATACCCBDGTAGTCGT"
 
 # outs
 output_path_folder = '/gpfs/commons/home/mgarbulowski/proj_shm/outputs'
-output_path = output_path_folder + "/SRR25456942"
+output_path = output_path_folder + "/SRR25456942_example"
 
 figs_path = "/gpfs/commons/home/mgarbulowski/proj_shm/figs"
 #####################################################################################################
@@ -60,12 +60,12 @@ r2_header_lines, r2_read_lines, r2_qual_lines = file_readers.fastq(path2)
 # make_plots.data_stats(starts, quals, 151, figs_path)
 
 # Sequence error rate 
-nsp = 5000 # number of reads per species
+nsp = 100 #5000 # number of reads per species
 
 #species_tra = None # species_list based on training data to match the same species, cane be left None
 er = 0.001
-ew = (0, 3, 1)
-tr = [0.1, 0.2] # range to truncate read from both ends (percentage), e.g. [0.05,0.1] will draw two values of percentage between range, one to truncate from left, other to truncate from right
+ew = (1, 2, 1)
+tr = [0.01, 0.05] # range to truncate read from both ends (percentage), e.g. [0.05,0.1] will draw two values of percentage between range, one to truncate from left, other to truncate from right
 #print_stats = True, default
 #shuffle = True, default
 

@@ -302,7 +302,7 @@ def validation_data(n_reads, output_path, mic_refs, r2_header_lines, r2_read_lin
                 print(qual_seq, file = f) # quality sequence
                 
                 r2_header_lines.remove(header)
-                if i == n_reads: # stop if N reads are reached
+                if i == (n_reads-1): # stop if N reads are reached, -1 as starts from 0
                     break
 
     # Print the genus+species list to output file
