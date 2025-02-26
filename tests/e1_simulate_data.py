@@ -10,13 +10,13 @@ import numpy as np
 
 # inps
 path1 = "/gpfs/commons/home/mgarbulowski/proj_shm/outputs/16S_rr.fa" # fasta
-path2 = "/gpfs/commons/home/mgarbulowski/proj_shm/inputs/SRR25456942_D2_2.fastq" # fastq 1
-path3 = "/gpfs/commons/home/mgarbulowski/proj_shm/inputs/SRR25456944_C2_2.fastq" # fastq 2
+path2 = "/gpfs/commons/home/mgarbulowski/proj_shm/inputs/raw_data/SRR25456942_D2_2.fastq" # fastq 1
+path3 = "/gpfs/commons/home/mgarbulowski/proj_shm/inputs/raw_data/SRR25456944_C2_2.fastq" # fastq 2
 surface_probe = "GGATTAGATACCCBDGTAGTCGT"
 
 # outs
 output_path_folder = '/gpfs/commons/home/mgarbulowski/proj_shm/outputs'
-output_path = output_path_folder + "/SRR25456942_noisy"
+output_path = output_path_folder + "/SRR25456942"
 
 figs_path = "/gpfs/commons/home/mgarbulowski/proj_shm/figs"
 #####################################################################################################
@@ -65,7 +65,7 @@ nsp = 5000 # number of reads per species
 #species_tra = None # species_list based on training data to match the same species, cane be left None
 er = 0.001
 ew = (0, 3, 1)
-tr = [0.1, 0.2] # range to truncate read from both ends (percentage), e.g. [0.05,0.1]
+tr = [0.1, 0.2] # range to truncate read from both ends (percentage), e.g. [0.05,0.1] will draw two values of percentage between range, one to truncate from left, other to truncate from right
 #print_stats = True, default
 #shuffle = True, default
 
