@@ -36,7 +36,7 @@ print("Num GPUs Available: ", len(tf.config.list_physical_devices('GPU')))
 
 # prepare data for DL training
 # outs
-output_path_folder = '/gpfs/commons/home/mgarbulowski/proj_shm/outputs'
+output_path_folder = '/gpfs/commons/home/mgarbulowski/proj_shm/outputs/training_data_preselected+noisy_1mln'
 output_path = output_path_folder + "/SRR25456942"
 
 figs_path = "/gpfs/commons/home/mgarbulowski/proj_shm/figs"
@@ -46,12 +46,12 @@ nsp = 5000
 species_path_val = output_path + "_" + str(nsp) + "ps_val_genus_species.txt"
 sim_data_val = output_path + "_" + str(nsp) + "ps_val_simulated.fastq"
 # training data 1
-output_path_e = output_path_folder + "/SRR25456942_e"
+output_path_e = output_path_folder + "/training_data_preselected+noisy_1mln/SRR25456942_e"
 species_path_tra_e = output_path_e + "_tra_genus_species.txt"
 sim_data_tra_e = output_path_e + "_tra_simulated.fastq"
 
 # training data 2
-output_path = output_path_folder + "/SRR25456942"
+output_path = output_path_folder + "/training_data_preselected+noisy_1mln/SRR25456942"
 species_path_tra = output_path + "_tra_genus_species.txt"
 sim_data_tra = output_path + "_tra_simulated.fastq"
 
