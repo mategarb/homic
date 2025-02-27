@@ -1,10 +1,10 @@
 <img src="imgs/logo_homics.png" width="200">
 
-# homic v2.0.1.
+# Version 2.0.1.
 
 A python package for HOst-MICrobiome (homic) spatial analysis 
 
-# installation guide
+# Installation guide
 
 ```python
 import sys
@@ -12,7 +12,7 @@ sys.path.append('/path/to/the/package/folder/src')
 from homic import file_readers, simulate_16S, dl_model
 ```
  
-# folders
+# Folders
 
 * src
     - main scripts of the package
@@ -25,7 +25,7 @@ from homic import file_readers, simulate_16S, dl_model
 * imgs
     - images for the package, e.g. logo
 
-# examples
+# Examples
 
 The example scripts for running the homic function, can be found in the "tests" folder.
 It contains three examples:
@@ -36,3 +36,5 @@ It contains three examples:
     - example for running training to generate deep learning model
 * e3_run_dl_evaluation.py
     - benchmarkign the DL model against Kraken2
+* e4_run_dl_prediction.py
+    - predicting genus/species based on read sequence (for entire .fastq) without using spots information (global performance)
