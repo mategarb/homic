@@ -132,8 +132,8 @@ def training_data(n_reads, output_path, score_thr, mic_refs, r2_header_lines, r2
             
             for i, header in enumerate(r2_header_lines):
                 # Randomly pick (species) sequence from the 16S fragment from the dictionary
-                random_key = random.choice(list(fasta_dict)) # key = species name
-                random_sequence = fasta_dict[random_key ] # select nuc. sequence for a given species
+                random_key = random.choice(list(fasta_dict.keys())) # key = species name
+                random_sequence = fasta_dict[random_key] # select nuc. sequence for a given species
                 # Store the genus+species which was randomly selected
                 R2_length = len(r2_read_lines[i]) # define read length based on real data
                 # randomly select where the R2 read is gonna start from a normal distibuiton
@@ -145,14 +145,16 @@ def training_data(n_reads, output_path, score_thr, mic_refs, r2_header_lines, r2
                 qual_seq = r2_qual_lines[i].rstrip()
                 qual_vec.append(list(map(ord, list(r2_qual_lines[i]))))
                 seq1 = Seq(random_sequence_read)
-
+                
+                scores_vec = []
+                
                 for key0, value0 in fasta_dict.items():
                     seq2 = Seq(value0)
-                    scores_vec = []
+                    
                     if key0 not in random_key:
                         tmp_aligns = aligner.score(seq2, seq1)
                         scores_vec.append(tmp_aligns)
-                
+ 
                 
                 if not not scores_vec:
                     all_scores.append(np.nanmean(scores_vec)/R2_length)
@@ -160,7 +162,7 @@ def training_data(n_reads, output_path, score_thr, mic_refs, r2_header_lines, r2
                         random_species_list.append(header.rstrip()+"|"+random_key) 
                         # it will be used as gold standard reference
                         random_only_species_list.append(random_key)
-
+    
                             
                         if not (trunc_range[0] == 0 and trunc_range[1] == 0): # truncating the read sequence
                             truncate_left = round(random.uniform(trunc_range[0],trunc_range[1])*len(random_sequence_read)) # from the left side
@@ -195,6 +197,7 @@ def training_data(n_reads, output_path, score_thr, mic_refs, r2_header_lines, r2
             print(item, file = f)
             
     # using Counter to find frequency of elements
+
     frequency = collections.Counter(random_only_species_list)
 
     if print_stats:

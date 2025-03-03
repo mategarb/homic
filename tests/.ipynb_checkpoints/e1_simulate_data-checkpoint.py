@@ -10,13 +10,15 @@ import numpy as np
 
 # inps
 path1 = "/gpfs/commons/home/mgarbulowski/proj_shm/outputs/references/16S_rr_62species_microbiome_only.fa" # fasta
+#path1 = "/gpfs/commons/home/mgarbulowski/proj_shm/outputs/references/16S_asf_8species.fasta" # fasta
+
 path2 = "/gpfs/commons/home/mgarbulowski/proj_shm/inputs/raw_data/SRR25456942_D2_2.fastq" # fastq 1
 path3 = "/gpfs/commons/home/mgarbulowski/proj_shm/inputs/raw_data/SRR25456944_C2_2.fastq" # fastq 2
 surface_probe = "GGATTAGATACCCBDGTAGTCGT"
 
 # outs
 output_path_folder = '/gpfs/commons/home/mgarbulowski/proj_shm/outputs'
-output_path = output_path_folder + "/SRR25456942_example"
+output_path = output_path_folder + "/SRR25456942_spf"
 
 figs_path = "/gpfs/commons/home/mgarbulowski/proj_shm/figs"
 #####################################################################################################
@@ -27,7 +29,6 @@ figs_path = "/gpfs/commons/home/mgarbulowski/proj_shm/figs"
 # read references for the microbiome
 mic_refs = file_readers.fasta(path1)
 
-
 [mic_refs, scores_vec] = simulate_16S.prune_references(surface_probe, mic_refs) # from 0 to the position of aligned probe
 
 
@@ -36,31 +37,41 @@ r2_header_lines, r2_read_lines, r2_qual_lines = file_readers.fastq(path2)
 
 # simulate training data for the DL model
 # startd = time.time()
+algn_scores, starts, quals, species_list = simulate_16S.training_data(500000, # total number of reads
+                                                                      output_path+"_er",
+                                                                      1, # full data, without preselection
+                                                                      mic_refs,
+                                                                      r2_header_lines,
+                                                                      r2_read_lines,
+                                                                      r2_qual_lines,
+                                                                      impute_errors = True,
+                                                                      trunc_range = [0.1,0.2],
+                                                                      print_stats = True)
+athr = round(np.mean(algn_scores), 4) + round(np.std(algn_scores), 4)
+print(athr)
 
-#impute_errors = True
-#trunc_range = [0,0]
-#print_stats = True
-#algn_scores, starts, quals, species_list = simulate_16S.training_data(50, # total number of reads
-#                                                                      output_path,
-#                                                                      1, # 0.77 est. as mean + std
-#                                                                      mic_refs,
-#                                                                      r2_header_lines,
-#                                                                      r2_read_lines,
-#                                                                      r2_qual_lines,
-#                                                                      impute_errors,
-#                                                                      trunc_range,
-#                                                                      print_stats)
+algn_scores, starts, quals, species_list = simulate_16S.training_data(500000, # total number of reads
+                                                                      output_path,
+                                                                      athr, # preselection, est. as mean + std
+                                                                      mic_refs,
+                                                                      r2_header_lines,
+                                                                      r2_read_lines,
+                                                                      r2_qual_lines,
+                                                                      impute_errors = False,
+                                                                      trunc_range = [0,0],
+                                                                      print_stats = True)
+
 
 #endd = time.time()
 #print("Time of data simulation[min.]: ")
 #print((endd - startd)/60)
 
 
-# make_plots.alignment_scores(algn_scores, figs_path)
+make_plots.alignment_scores(algn_scores, figs_path)
 # make_plots.data_stats(starts, quals, 151, figs_path)
 
 # Sequence error rate 
-nsp = 100 #5000 # number of reads per species
+nsp = 10000 # number of reads per species
 
 #species_tra = None # species_list based on training data to match the same species, cane be left None
 er = 0.001

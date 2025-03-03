@@ -39,8 +39,8 @@ import re
 #path = '/gpfs/commons/home/mgarbulowski/proj_shm/inputs/asf_data/SRR25456916.fastq'
 #path = '/gpfs/commons/home/mgarbulowski/proj_shm/inputs/asf_data/SRR25456917.fastq'
 #path = '/gpfs/commons/home/mgarbulowski/proj_shm/inputs/asf_data/SRR25456918.fastq'
-path = '/gpfs/commons/home/mgarbulowski/proj_shm/inputs/raw_data/SRR25456944_C2_2.fastq'
-
+#path = '/gpfs/commons/home/mgarbulowski/proj_shm/inputs/raw_data/SRR25456944_C2_2.fastq'
+path = '/gpfs/commons/home/mgarbulowski/proj_shm/inputs/other_data/SRR25670668.fastq'
 
 heads, reads, quals = file_readers.fastq(path)
 del heads, quals
@@ -65,7 +65,7 @@ encoder = pickle.load(open(os.path.join(input_path, input_encoder), 'rb'))
 #info.loc[info["truth_taxa"] == "[Eubacterium] eligens", "truth_taxa"] = 'Lachnospira eligens' # cause it has different names
 
 # initialize data of lists.
-data = {'read': reads[:1000000]}
+data = {'read': reads}
 
 # Create DataFrame
 info_xy = pd.DataFrame(data)
@@ -126,7 +126,7 @@ for i in c:
 # frequency of species
 print(c)
 df = pd.DataFrame.from_dict(c, orient='index')
-df.to_csv('/gpfs/commons/home/mgarbulowski/proj_shm/inputs/asf_data/pred_species_SRR25456944.txt', sep='\t')
+df.to_csv('/gpfs/commons/home/mgarbulowski/proj_shm/inputs/other_data/pred_species_SRR25670668.txt', sep='\t')
 
 y_pred2 = preds.iloc[:,1]
 y_pred2 = y_pred2.tolist()
@@ -139,7 +139,7 @@ for i in c2:
 # frequency of species
 print(c2)
 df2 = pd.DataFrame.from_dict(c2, orient='index')
-df2.to_csv('/gpfs/commons/home/mgarbulowski/proj_shm/inputs/asf_data/pred_genus_SRR25456944.txt', sep='\t')
+df2.to_csv('/gpfs/commons/home/mgarbulowski/proj_shm/inputs/other_data/pred_genus_SRR25670668.txt', sep='\t')
 
 
 #y_true = info['truth_taxa'].tolist()

@@ -33,10 +33,12 @@ def fasta(path):
             else:
                 whole_header = line.rstrip() # 1st species
                 species = ' '.join([line.split(' ')[1], line.split(' ')[2]]) # species name only
-                new_seq = []            
+                new_seq = []
         # Get sequence
         else: # find sequence
             new_seq.append(line.rstrip()) # whitspace removal and append of all lines with sequences
+            
+    fasta_dict[species] = [whole_header, ''.join(new_seq)] # last one
     print("Number of organisms in reference: "+str(len(fasta_dict)))
     return fasta_dict # fasta_dict is a dictionary of 2 element lists (header + sequence)
 

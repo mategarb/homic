@@ -260,7 +260,7 @@ class FragmentClassifier(object):
         x_train, y_train = self.x_train, self.y_train
         x_test, y_test = self.x_test, self.y_test
         x_val, y_val = self.x_val, self.y_val
-        
+
         train_loss = []
         val_loss = []
         train_acc = []
@@ -355,68 +355,85 @@ def evaluation(model, output_fig):
 
 # Load and prepare simulated data
 # Read input fasta file
-def prepare_data(input_fq, ref_d):
+def prepare_data(input_fq, ref_d, taxa_skip):
     fasta_d_tmp = parser(input_fq)
-
-    # Add taxa order for the species names in dict
     ref_df = pd.DataFrame.from_dict(ref_d, orient='index', columns=['taxa'])
-    ref_df.loc[ref_df["taxa"] == "[Eubacterium] eligens", "taxa"] = 'Lachnospira eligens'
 
-    ncbi = ete3.NCBITaxa()
-    taxids = ncbi.get_name_translator(ref_df["taxa"])
-    taxidsf = sum(list(taxids.values()), []) # flatten the list
-    taxids_dict = dict(zip(taxids.keys(), taxidsf)) ## swapping values with keys
-    taxon_id = set(taxidsf)
+    if not taxa_skip:
+    # Add taxa order for the species names in dict
 
-    #print(taxon_id)
-    #lineage = ncbi.get_lineage(taxon_id)
-
-    lineage_df = {} #pd.DataFrame()
-    for tmp_taxid in taxon_id:
-        if tmp_taxid != 0:
-            tmp_lineage = pd.Series({rank : taxon
-                                     for taxon, rank in ncbi.get_rank(
-                                         ncbi.get_lineage(tmp_taxid)).items()
-                                    })
-            tmp_lineage = pd.Series(index=tmp_lineage.index,
-                                    data =ncbi.translate_to_names(tmp_lineage))
+        ref_df.loc[ref_df["taxa"] == "[Eubacterium] eligens", "taxa"] = 'Lachnospira eligens'
+        # in case of ASF
+        #ref_df.loc[ref_df["taxa"] == "ASF356 Clostridium", "taxa"] = 'Clostridium sp.'
+        #ref_df.loc[ref_df["taxa"] == "ASF360 Lactobacillus", "taxa"] = 'Lactobacillus intestinalis'
+        #ref_df.loc[ref_df["taxa"] == "ASF361 Lactobacillus", "taxa"] = 'Lactobacillus murinus'
+        #ref_df.loc[ref_df["taxa"] == "ASF457 Bacterium", "taxa"] = 'Mucispirillum schaedleri'
+        #ref_df.loc[ref_df["taxa"] == "ASF492 Eubacterium", "taxa"] = 'Eubacterium plexicaudatum'
+        #ref_df.loc[ref_df["taxa"] == "ASF500 Bacterium", "taxa"] = 'Pseudoflavonifractor sp.'
+        #ref_df.loc[ref_df["taxa"] == "ASF502 Clostridium", "taxa"] = 'Clostridium sp.'
+        #ref_df.loc[ref_df["taxa"] == "ASF519 Bacteroides", "taxa"] = 'Parabacteroides goldsteinii'
         
-            tmp_lineage.name = tmp_taxid
-            tmp_lineage.fillna(value='unassigned')
-            lineage_df[tmp_taxid] = tmp_lineage#pd.concat([lineage_df, tmp_lineage], axis=1)
-
-        else:
-            nms = ['no rank', 'superkingdom', 'phylum', 'class', 'family', 'genus', 'kingdom', 'species', 'order']
-            lineage_df[tmp_taxid] = pd.DataFrame(['unassigned'] * len(nms), index=nms)
+        ncbi = ete3.NCBITaxa()
+        taxids = ncbi.get_name_translator(ref_df["taxa"])
+        taxidsf = sum(list(taxids.values()), []) # flatten the list
+        taxids_dict = dict(zip(taxids.keys(), taxidsf)) ## swapping values with keys
+        taxon_id = set(taxidsf)
     
-    taxids_full = [*map(taxids_dict.get, ref_df["taxa"].tolist())] # mapping between species and tax ids, to get tax ids only
-    tmp_res = list(map(lineage_df.get, taxids_full))
-
-    lineage_df_all = pd.concat(tmp_res, axis=1, ignore_index=True)
-    lineage_df_all = lineage_df_all.loc[['superkingdom', 'phylum', 'class', 'order', 'family', 'genus','species']]
-    lineage_df_all = lineage_df_all.T
-    lineage_df_all = lineage_df_all.fillna('unassigned')
-    lineage_df_all = lineage_df_all.iloc[:, ::-1] # reversing the order
+        #print(taxon_id)
+        #lineage = ncbi.get_lineage(taxon_id)
     
-    #ref_df['taxa_order'] = ref_df['taxa'].map(ge_sp_dict)
-    ref_df['taxa_order'] = lineage_df_all.apply(','.join, axis=1).tolist()
-
-    ref_d = ref_df.to_dict('index')
-    ### Prepare simulated data ###
-
-    df = pd.DataFrame.from_dict(ref_d, orient='index', columns=['taxa', 'taxa_order'])
-    df.reset_index(inplace=True)
-    df_sim = df.sample(frac=1).reset_index() # Random shuffle
-
-    df_sim['read'] = df_sim['index'].map(fasta_d_tmp)
-    df_sim['read'] = list(filter(str.strip, df_sim['read']))
-
-    merging_cols = ['index', 'taxa_order', 'read'] 
-    df_merge = df_sim.loc[:,merging_cols]
-
-    df_merge['taxa_order_GE'] = df_merge['taxa_order'].str.split(',').str[1:]
-    df_merge['taxa_order_GE'] = df_merge['taxa_order_GE'].str.join(',') # GE genus?
-
+        lineage_df = {} #pd.DataFrame()
+        for tmp_taxid in taxon_id:
+            if tmp_taxid != 0:
+                tmp_lineage = pd.Series({rank : taxon
+                                         for taxon, rank in ncbi.get_rank(
+                                             ncbi.get_lineage(tmp_taxid)).items()
+                                        })
+                tmp_lineage = pd.Series(index=tmp_lineage.index,
+                                        data =ncbi.translate_to_names(tmp_lineage))
+            
+                tmp_lineage.name = tmp_taxid
+                tmp_lineage.fillna(value='unassigned')
+                lineage_df[tmp_taxid] = tmp_lineage#pd.concat([lineage_df, tmp_lineage], axis=1)
+    
+            else:
+                nms = ['no rank', 'superkingdom', 'phylum', 'class', 'family', 'genus', 'kingdom', 'species', 'order']
+                lineage_df[tmp_taxid] = pd.DataFrame(['unassigned'] * len(nms), index=nms)
+        
+        taxids_full = [*map(taxids_dict.get, ref_df["taxa"].tolist())] # mapping between species and tax ids, to get tax ids only
+        tmp_res = list(map(lineage_df.get, taxids_full))
+    
+        lineage_df_all = pd.concat(tmp_res, axis=1, ignore_index=True)
+        lineage_df_all = lineage_df_all.loc[['superkingdom', 'phylum', 'class', 'order', 'family', 'genus','species']]
+        lineage_df_all = lineage_df_all.T
+        lineage_df_all = lineage_df_all.fillna('unassigned')
+        lineage_df_all = lineage_df_all.iloc[:, ::-1] # reversing the order
+        
+        #ref_df['taxa_order'] = ref_df['taxa'].map(ge_sp_dict)
+        ref_df['taxa_order'] = lineage_df_all.apply(','.join, axis=1).tolist()
+    
+        ref_d = ref_df.to_dict('index')
+        ### Prepare simulated data ###
+    
+        df = pd.DataFrame.from_dict(ref_d, orient='index', columns=['taxa', 'taxa_order'])
+        df.reset_index(inplace=True)
+        df_sim = df.sample(frac=1).reset_index() # Random shuffle
+    
+        df_sim['read'] = df_sim['index'].map(fasta_d_tmp)
+        df_sim['read'] = list(filter(str.strip, df_sim['read']))
+    
+        merging_cols = ['index', 'taxa_order', 'read'] 
+        df_merge = df_sim.loc[:,merging_cols]
+    
+        df_merge['taxa_order_GE'] = df_merge['taxa_order'].str.split(',').str[1:]
+        df_merge['taxa_order_GE'] = df_merge['taxa_order_GE'].str.join(',') # GE genus?
+    else:
+        ref_df['taxa_order'] = ref_df['taxa']
+        ref_df['index'] = ref_df.index
+        ref_df['read'] = ref_df['index'].map(fasta_d_tmp)
+        ref_df['read'] = list(filter(str.strip, ref_df['read']))
+        df_merge = ref_df
+    
     return df_merge
 
 # Load and prepare simulated data
@@ -518,6 +535,9 @@ def one_hot_model(data_train, data_val, encoder_tra, encoder_val, epochs, batche
     elif rank == "genus":
         y = data_train['taxa_order_GE']
         y_val = data_val['taxa_order_GE']
+    elif rank == "none":
+        y = data_train['taxa_order']
+        y_val = data_val['taxa_order']
     else:
         print("Rank not recognized. Please select 'species' or 'genus'")
 
