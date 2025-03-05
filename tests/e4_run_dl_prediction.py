@@ -36,11 +36,11 @@ import re
 
 #### fastq with simulated reads
 #path = '/gpfs/commons/home/mgarbulowski/homic_package/data/SRR25456942_example_16SrRNAseq_data.fastq'
-#path = '/gpfs/commons/home/mgarbulowski/proj_shm/inputs/asf_data/SRR25456916.fastq'
+path = '/gpfs/commons/home/mgarbulowski/proj_shm/inputs/asf_data/SRR25456916.fastq'
 #path = '/gpfs/commons/home/mgarbulowski/proj_shm/inputs/asf_data/SRR25456917.fastq'
 #path = '/gpfs/commons/home/mgarbulowski/proj_shm/inputs/asf_data/SRR25456918.fastq'
 #path = '/gpfs/commons/home/mgarbulowski/proj_shm/inputs/raw_data/SRR25456944_C2_2.fastq'
-path = '/gpfs/commons/home/mgarbulowski/proj_shm/inputs/other_data/SRR25670668.fastq'
+#path = '/gpfs/commons/home/mgarbulowski/proj_shm/inputs/other_data/SRR25670668.fastq'
 
 heads, reads, quals = file_readers.fastq(path)
 del heads, quals
@@ -50,7 +50,7 @@ print("number of reads:")
 print(len(reads))
 
 #### dl model
-input_path = '/gpfs/commons/home/mgarbulowski/homic_package/models/spemic62m'
+input_path = '/gpfs/commons/home/mgarbulowski/homic_package/models/asfmic_16S'
 input_model = 'model_LSTM.keras'
 input_encoder = 'train_encoder_LSTM.h5'
 

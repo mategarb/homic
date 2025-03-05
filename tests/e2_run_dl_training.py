@@ -65,7 +65,7 @@ sim_data_tra = output_path + "_tra_simulated.fastq"
 ################################# Prepare data
 
 # validation
-ts = False # skip taxa info, just labels
+ts = True # skip taxa info, just labels
 species_info_val = file_readers.species_outcome(species_path_val)
 prep_data_val = dl_model.prepare_data(sim_data_val, species_info_val, ts)
 oh_encoder_val = dl_model.one_hot_encoder(prep_data_val)
