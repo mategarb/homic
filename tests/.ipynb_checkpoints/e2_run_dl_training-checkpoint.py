@@ -36,12 +36,17 @@ print("Num GPUs Available: ", len(tf.config.list_physical_devices('GPU')))
 
 # prepare data for DL training
 # outs
-output_path_folder = '/gpfs/commons/home/mgarbulowski/proj_shm/outputs/training_data_asf_16S' # training_data_preselected+noisy_1mln
-output_path = output_path_folder + "/SRR25456942_asf"
+#output_path_folder = '/gpfs/commons/home/mgarbulowski/proj_shm/outputs/training_data_asf_16S_400k' # training_data_preselected+noisy_1mln
+#output_path_folder = '/gpfs/commons/home/mgarbulowski/proj_shm/outputs/training_data_spf_preselected+noisy_1mln_v2'
+output_path_folder = '/gpfs/commons/home/mgarbulowski/proj_shm/outputs/training_data_asf+spf_16S'
+
+#output_path = output_path_folder + "/SRR25456942_asf"
+#output_path = output_path_folder + "/SRR25456942_spf"
+output_path = output_path_folder + "/SRR25456942_spf_asf"
 
 figs_path = "/gpfs/commons/home/mgarbulowski/proj_shm/figs"
 
-nsp = 20000
+nsp = 10000
 # validation
 species_path_val = output_path + "_" + str(nsp) + "ps_val_genus_species.txt"
 sim_data_val = output_path + "_" + str(nsp) + "ps_val_simulated.fastq"
@@ -60,7 +65,7 @@ sim_data_tra = output_path + "_tra_simulated.fastq"
 ################################# Prepare data
 
 # validation
-ts = True # skip taxa info, just labels
+ts = False # skip taxa info, just labels
 species_info_val = file_readers.species_outcome(species_path_val)
 prep_data_val = dl_model.prepare_data(sim_data_val, species_info_val, ts)
 oh_encoder_val = dl_model.one_hot_encoder(prep_data_val)
