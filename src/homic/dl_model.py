@@ -51,6 +51,8 @@ from sklearn.metrics import classification_report
 from numba import njit, prange
 
 from keras import layers
+
+from multiprocessing import Pool
 #####################################################################################################
 #####################################################################################################
 #####################################################################################################
@@ -706,7 +708,7 @@ def dna_encode_embedding_table(dna_input, name="dna_encode"):
 def stack_padding(info_xy):
     # Stack reads into one tensor
     info_xy['one_hot_tensor'] = info_xy.apply(lambda row: dna_encode_embedding_table(row['read']), axis=1)
-    X = np.array(info_xy['one_hot_tensor'].tolist())
+    X = np.array(info_xy['one_hot_tensor'].tolist(), dtype=object)
     # Padding to the same sequence length
     masking_value = -1
     max_seq_len = max(len(x) for x in info_xy['one_hot_tensor'].tolist())
@@ -718,6 +720,7 @@ def stack_padding(info_xy):
         seq_len = x.shape[0]
         Xpad[s, 0:seq_len, :] = x
     return Xpad
+
 
 def extract_taxa_info(info_xy, column_header, slide_type):
     y_taxaorder = info_xy[column_header].tolist()
@@ -732,3 +735,48 @@ def extract_taxa_info(info_xy, column_header, slide_type):
 def predict_taxa_in_model(Xpad, model):
     predictions = model.predict(Xpad)
     return predictions
+
+
+
+
+def pred_fun(data):
+    model = tf.keras.models.load_model('/gpfs/commons/home/mgarbulowski/homic_package/models/asfmic_16S/model.keras')
+    return model.predict(data)
+
+
+def run_multithread(data, threads):
+    pool = Pool(processes=threads)
+    result = pool.map(pred_fun, np.array_split(data, threads))
+    pool.close()
+    return list(result)
+
+
+def predict_class_for_reads(info_xy, model, encoder, rank="none", parallel=False):
+    Xpad = stack_padding(info_xy) # stacking and padding/masking of reads
+    
+    if parallel:
+        predictions = run_multithread(Xpad, threads=4)
+    else:
+        predictions = model.predict(Xpad, verbose = 0) # predict assignments using the model
+        
+    rv_predictions = encoder.inverse_transform(predictions.argmax(axis=1)) # predict taxa using encoder
+    
+    data2 = {'y_pred': rv_predictions}
+    
+    preds = pd.DataFrame(data2)
+    preds = preds['y_pred'].str.split(',', expand=True)
+    
+    if rank == "genus":
+        y_pred = preds.iloc[:,1]
+    else:
+        y_pred = preds.iloc[:,0]
+        
+    y_pred = y_pred.tolist()
+    
+    class_freq = Counter(y_pred)
+    
+    for i in class_freq:
+        class_freq[i] = round(float(class_freq[i]/len(y_pred)), 3) * 100
+        
+    return y_pred, class_freq
+    
