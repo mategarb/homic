@@ -38,11 +38,12 @@ print("Num GPUs Available: ", len(tf.config.list_physical_devices('GPU')))
 # outs
 #output_path_folder = '/gpfs/commons/home/mgarbulowski/proj_shm/outputs/training_data_asf_16S_400k' # training_data_preselected+noisy_1mln
 #output_path_folder = '/gpfs/commons/home/mgarbulowski/proj_shm/outputs/training_data_spf_preselected+noisy_1mln_v2'
-output_path_folder = '/gpfs/commons/home/mgarbulowski/proj_shm/outputs/training_data_asf+spf_16S'
+output_path_folder = '/gpfs/commons/home/mgarbulowski/proj_shm/outputs/training_data_asf_16S_500k_plusMice'
 
 #output_path = output_path_folder + "/SRR25456942_asf"
 #output_path = output_path_folder + "/SRR25456942_spf"
-output_path = output_path_folder + "/SRR25456942_spf_asf"
+#output_path = output_path_folder + "/SRR25456942_spf_asf"
+output_path = output_path_folder + "/SRR25456942_asfm"
 
 figs_path = "/gpfs/commons/home/mgarbulowski/proj_shm/figs"
 

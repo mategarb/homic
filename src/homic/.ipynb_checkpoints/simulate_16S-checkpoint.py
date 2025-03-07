@@ -85,7 +85,7 @@ import collections
 #fragment_length = 500 # Estimated fragment size of the 16S gene captured on the slide surface
 #R2_length = 300 # Max R2 length
 
-def prune_references(probe_seq, mic_ref_seqs):
+def prune_references(probe_seq, mic_ref_seqs, thr=0.25):
     
     aligner = Align.PairwiseAligner()
     aligner.mode = "local"
@@ -102,6 +102,9 @@ def prune_references(probe_seq, mic_ref_seqs):
         scores_vec.append(alignment.score)
         coords_df = pd.DataFrame(np.concatenate(alignment.coordinates))
         mic_ref_seqs[key] = value[1][0:coords_df.iloc[0,0]]
+        if len(mic_ref_seqs[key])/len(value[1]) < thr: # when most of the sequence is removed 
+            # there is not enough length to draw a read
+            mic_ref_seqs[key] = value[1] # in such case a full reference is taken
     return mic_ref_seqs, scores_vec
 
 def training_data(n_reads, output_path, score_thr, mic_refs, r2_header_lines, r2_read_lines, r2_qual_lines, impute_errors, trunc_range, print_stats):

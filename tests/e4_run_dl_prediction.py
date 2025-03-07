@@ -40,25 +40,61 @@ import re
 #path = '/gpfs/commons/home/mgarbulowski/proj_shm/inputs/asf_data/SRR25456917.fastq'
 #path = '/gpfs/commons/home/mgarbulowski/proj_shm/inputs/asf_data/SRR25456918.fastq'
 #path = '/gpfs/commons/home/mgarbulowski/proj_shm/inputs/raw_data/SRR25456942_D2_2.fastq'
-path = '/gpfs/commons/home/mgarbulowski/proj_shm/inputs/raw_data/SRR25456944_C2_2.fastq'
+#path = '/gpfs/commons/home/mgarbulowski/proj_shm/inputs/raw_data/SRR25456944_C2_2.fastq'
 #path = '/gpfs/commons/home/mgarbulowski/proj_shm/inputs/other_data/SRR25670668.fastq'
 
+#### dl model
+input_path = '/gpfs/commons/home/mgarbulowski/homic_package/models/mixmic71_16S'
+input_model = 'model.keras'
+input_encoder = 'tra_encoder.h5'
+# loading model and encoder
+model = keras.models.load_model(os.path.join(input_path, input_model))#input_path + "/" + input_model#
+encoder = pickle.load(open(os.path.join(input_path, input_encoder), 'rb'))
+
+
+###### TEST ############ TEST ############ TEST ######
+path = '/gpfs/commons/home/mgarbulowski/proj_shm/inputs/raw_data/SRR25456942_D2_2.fastq'
 heads, reads, quals = file_readers.fastq(path)
+
 del heads, quals
 
 print("Data loaded")
 print("Number of reads:")
 print(len(reads))
 
-#### dl model
-input_path = '/gpfs/commons/home/mgarbulowski/homic_package/models/asfmic_16S'
-input_model = 'model.keras'
-input_encoder = 'tra_encoder.h5'
+# initialize data of lists.
+data = {'read': reads[:100000]}
 
-# loading model and encoder
-model = keras.models.load_model(os.path.join(input_path, input_model))#input_path + "/" + input_model#
-encoder = pickle.load(open(os.path.join(input_path, input_encoder), 'rb'))
+# Create DataFrame
+info_xy = pd.DataFrame(data)
 
+
+startt = time.time()
+pred_classes, freq_pred_classes = dl_model.predict_class_for_reads(info_xy, model, encoder, rank="none")
+endt = time.time()
+print("Regular")
+print("Time of prediction [min.]: ")
+print((endt - startt)/60)
+
+startt = time.time()
+pred_classes, freq_pred_classes = dl_model.par_predict_class_for_reads(info_xy, model, encoder, rank="none")
+endt = time.time()
+print("Parallel")
+print("Time of prediction [min.]: ")
+print((endt - startt)/60)
+
+breakpoint()
+###### TEST ############ TEST ############ TEST ######
+
+## DATA 1
+path = '/gpfs/commons/home/mgarbulowski/proj_shm/inputs/raw_data/SRR25456942_D2_2.fastq'
+heads, reads, quals = file_readers.fastq(path)
+
+del heads, quals
+
+print("Data loaded")
+print("Number of reads:")
+print(len(reads))
 
 # initialize data of lists.
 data = {'read': reads[:1000000]}
@@ -75,8 +111,118 @@ print((endt - startt)/60)
 
 # frequency of species
 df = pd.DataFrame.from_dict(freq_pred_classes, orient='index')
-df.to_csv('/gpfs/commons/home/mgarbulowski/proj_shm/outputs/predictions/pred_asf16S_SRR25456944.txt', sep='\t')
+df.to_csv('/gpfs/commons/home/mgarbulowski/proj_shm/outputs/predictions/pred_mix16S_SRR25456942.txt', sep='\t')
 
+## DATA 2
+path = '/gpfs/commons/home/mgarbulowski/proj_shm/inputs/raw_data/SRR25456944_C2_2.fastq'
+heads, reads, quals = file_readers.fastq(path)
+
+del heads, quals
+
+print("Data loaded")
+print("Number of reads:")
+print(len(reads))
+
+# initialize data of lists.
+data = {'read': reads[:1000000]}
+
+# Create DataFrame
+info_xy = pd.DataFrame(data)
+
+
+startt = time.time()
+pred_classes, freq_pred_classes = dl_model.predict_class_for_reads(info_xy, model, encoder, rank="none")
+endt = time.time()
+print("Time of prediction[min.]: ")
+print((endt - startt)/60)
+
+# frequency of species
+df = pd.DataFrame.from_dict(freq_pred_classes, orient='index')
+df.to_csv('/gpfs/commons/home/mgarbulowski/proj_shm/outputs/predictions/pred_mix16S_SRR25456944.txt', sep='\t')
+breakpoint()
+####################################################################################
+
+
+## DATA 1
+path = '/gpfs/commons/home/mgarbulowski/proj_shm/inputs/asf_data/SRR25456916.fastq'
+heads, reads, quals = file_readers.fastq(path)
+
+del heads, quals
+
+print("Data loaded")
+print("Number of reads:")
+print(len(reads))
+
+# initialize data of lists.
+data = {'read': reads[:1000000]}
+
+# Create DataFrame
+info_xy = pd.DataFrame(data)
+
+
+startt = time.time()
+pred_classes, freq_pred_classes = dl_model.predict_class_for_reads(info_xy, model, encoder, rank="none")
+endt = time.time()
+print("Time of prediction[min.]: ")
+print((endt - startt)/60)
+
+# frequency of species
+df = pd.DataFrame.from_dict(freq_pred_classes, orient='index')
+df.to_csv('/gpfs/commons/home/mgarbulowski/proj_shm/outputs/predictions/pred_mix16S_SRR25456916.txt', sep='\t')
+
+## DATA 2
+path = '/gpfs/commons/home/mgarbulowski/proj_shm/inputs/asf_data/SRR25456917.fastq'
+heads, reads, quals = file_readers.fastq(path)
+
+del heads, quals
+
+print("Data loaded")
+print("Number of reads:")
+print(len(reads))
+
+# initialize data of lists.
+data = {'read': reads[:1000000]}
+
+# Create DataFrame
+info_xy = pd.DataFrame(data)
+
+
+startt = time.time()
+pred_classes, freq_pred_classes = dl_model.predict_class_for_reads(info_xy, model, encoder, rank="none")
+endt = time.time()
+print("Time of prediction[min.]: ")
+print((endt - startt)/60)
+
+# frequency of species
+df = pd.DataFrame.from_dict(freq_pred_classes, orient='index')
+df.to_csv('/gpfs/commons/home/mgarbulowski/proj_shm/outputs/predictions/pred_mix16S_SRR25456917.txt', sep='\t')
+
+## DATA 3
+path = '/gpfs/commons/home/mgarbulowski/proj_shm/inputs/asf_data/SRR25456918.fastq'
+heads, reads, quals = file_readers.fastq(path)
+
+del heads, quals
+
+print("Data loaded")
+print("Number of reads:")
+print(len(reads))
+
+# initialize data of lists.
+data = {'read': reads[:1000000]}
+
+# Create DataFrame
+info_xy = pd.DataFrame(data)
+
+
+startt = time.time()
+pred_classes, freq_pred_classes = dl_model.predict_class_for_reads(info_xy, model, encoder, rank="none", parallel=False)
+endt = time.time()
+print("Time of prediction[min.]: ")
+print((endt - startt)/60)
+
+# frequency of species
+df = pd.DataFrame.from_dict(freq_pred_classes, orient='index')
+df.to_csv('/gpfs/commons/home/mgarbulowski/proj_shm/outputs/predictions/pred_mix16S_SRR25456918.txt', sep='\t')
 
 
 #y_true = info['truth_taxa'].tolist()

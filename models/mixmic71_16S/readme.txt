@@ -1,5 +1,5 @@
-reads: 1mln
+reads: 1.2mln
 epochs: 11
 batches: 50
 architecture: LSTM
-genera: 39
+species: 63+8(ASF)

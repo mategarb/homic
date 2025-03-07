@@ -738,10 +738,11 @@ def predict_taxa_in_model(Xpad, model):
 
 
 
-
 def pred_fun(data):
-    model = tf.keras.models.load_model('/gpfs/commons/home/mgarbulowski/homic_package/models/asfmic_16S/model.keras')
-    return model.predict(data)
+    model = tf.keras.models.load_model('/gpfs/commons/home/mgarbulowski/homic_package/models/mixmic71_16S/model.keras')
+    encoder = pickle.load(open('/gpfs/commons/home/mgarbulowski/homic_package/models/mixmic71_16S/tra_encoder.h5', 'rb'))
+    predictions = model.predict(data, verbose = 0)
+    return encoder.inverse_transform(predictions.argmax(axis=1))
 
 
 def run_multithread(data, threads):
@@ -750,17 +751,39 @@ def run_multithread(data, threads):
     pool.close()
     return list(result)
 
-
-def predict_class_for_reads(info_xy, model, encoder, rank="none", parallel=False):
+# regular version
+def predict_class_for_reads(info_xy, model, encoder, rank="none"):
     Xpad = stack_padding(info_xy) # stacking and padding/masking of reads
     
-    if parallel:
-        predictions = run_multithread(Xpad, threads=4)
-    else:
-        predictions = model.predict(Xpad, verbose = 0) # predict assignments using the model
+    predictions = model.predict(Xpad, verbose = 0) # predict assignments using the model
         
     rv_predictions = encoder.inverse_transform(predictions.argmax(axis=1)) # predict taxa using encoder
     
+    data2 = {'y_pred': rv_predictions}
+    
+    preds = pd.DataFrame(data2)
+    preds = preds['y_pred'].str.split(',', expand=True)
+    
+    if rank == "genus":
+        y_pred = preds.iloc[:,1]
+    else:
+        y_pred = preds.iloc[:,0]
+        
+    y_pred = y_pred.tolist()
+    
+    class_freq = Counter(y_pred)
+    
+    for i in class_freq:
+        class_freq[i] = round(float(class_freq[i]/len(y_pred)), 3) * 100
+        
+    return y_pred, class_freq
+
+# parallel version
+def par_predict_class_for_reads(info_xy, model, encoder, rank="none"):
+    Xpad = stack_padding(info_xy) # stacking and padding/masking of reads
+    
+    rv_predictions = run_multithread(Xpad, threads=4)
+
     data2 = {'y_pred': rv_predictions}
     
     preds = pd.DataFrame(data2)

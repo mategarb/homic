@@ -1,6 +1,6 @@
 [project]
 name = "homic"
-version = "2.0.1"
+version = "2.1.0"
 authors = [
   { name="Mateusz Garbulowski", email="mateusz.garbulowski@igp.uu.se" },
   { name="Britta Lötstedt" },

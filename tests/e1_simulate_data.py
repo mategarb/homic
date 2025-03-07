@@ -8,17 +8,19 @@ import numpy as np
 #####################################################################################################
 ################################# I/O paths and sequences
 
-# inps
-path1 = "/gpfs/commons/home/mgarbulowski/proj_shm/outputs/references/16S_rr_63species_microbiome_only.fa" # fasta
-path01 = "/gpfs/commons/home/mgarbulowski/proj_shm/outputs/references/16S_asf_8species.fasta" # fasta
+# fasta reference inps
+#path1 = "/gpfs/commons/home/mgarbulowski/proj_shm/outputs/references/16S_rr_63species_microbiome_only.fa"
+#path1 = "/gpfs/commons/home/mgarbulowski/proj_shm/outputs/references/16S_asf_8species-plusMouse.fasta"
+path1 = "/gpfs/commons/home/mgarbulowski/proj_shm/outputs/references/16S_rr_63species_8ASF_mm.fa"
+#path01 = "/gpfs/commons/home/mgarbulowski/proj_shm/outputs/references/16S_asf_8species.fasta"
 
 path2 = "/gpfs/commons/home/mgarbulowski/proj_shm/inputs/raw_data/SRR25456942_D2_2.fastq" # fastq 1
 path3 = "/gpfs/commons/home/mgarbulowski/proj_shm/inputs/raw_data/SRR25456944_C2_2.fastq" # fastq 2
 surface_probe = "GGATTAGATACCCBDGTAGTCGT"
 
 # outs
-output_path_folder = '/gpfs/commons/home/mgarbulowski/proj_shm/outputs'
-output_path = output_path_folder + "/SRR25456942_spf"
+output_path_folder = '/gpfs/commons/home/mgarbulowski/proj_shm/outputs/training_data_spfasf_16S_500k_plusMice'
+output_path = output_path_folder + "/SRR25456942_spfasfm"
 
 figs_path = "/gpfs/commons/home/mgarbulowski/proj_shm/figs"
 #####################################################################################################
@@ -27,9 +29,11 @@ figs_path = "/gpfs/commons/home/mgarbulowski/proj_shm/figs"
 
 
 # read references for the microbiome
-mic_refs1 = file_readers.fasta(path1)
-np0 = mic_refs1.keys()
-npa = np.array(list(np0))
+#mic_refs1 = file_readers.fasta(path1)
+#print(mic_refs1)
+
+#np0 = mic_refs1.keys()
+#npa = np.array(list(np0))
 
 # saving species list
 #spth = "/gpfs/commons/home/mgarbulowski/proj_shm/outputs/references/keys_spec63.txt"
@@ -38,19 +42,20 @@ npa = np.array(list(np0))
 #        txt_file.write("".join(line) + "\n")
 
 
-mic_refs2 = file_readers.fasta(path01)
-
-mic_refs = {**mic_refs1, **mic_refs2}
-
+#mic_refs2 = file_readers.fasta(path01)
+#print(mic_refs2)
+#breakpoint()
+mic_refs = file_readers.fasta(path1)
 [mic_refs, scores_vec] = simulate_16S.prune_references(surface_probe, mic_refs) # from 0 to the position of aligned probe
 
+#mic_refs = {**mic_refs1, **mic_refs2}
 
 # read real SHM-seq fastq for data simulation
 r2_header_lines, r2_read_lines, r2_qual_lines = file_readers.fastq(path2)
 
 # simulate training data for the DL model
 # startd = time.time()
-algn_scores, starts, quals, species_list = simulate_16S.training_data(600000, # total number of reads
+algn_scores, starts, quals, species_list = simulate_16S.training_data(700000, # total number of reads
                                                                       output_path+"_er",
                                                                       1, # full data, without preselection
                                                                       mic_refs,
@@ -63,7 +68,7 @@ algn_scores, starts, quals, species_list = simulate_16S.training_data(600000, # 
 athr = round(np.mean(algn_scores), 4) + round(np.std(algn_scores), 4)
 print(athr)
 
-algn_scores, starts, quals, species_list = simulate_16S.training_data(600000, # total number of reads
+algn_scores, starts, quals, species_list = simulate_16S.training_data(700000, # total number of reads
                                                                       output_path,
                                                                       athr, # preselection, est. as mean + std
                                                                       mic_refs,
