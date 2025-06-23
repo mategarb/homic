@@ -191,7 +191,7 @@ def hash_file(filename, buf_size=8192):
 
 
 ### classification function modified to run in homic ###
-def classify(db_path, input_file, confidence=0.01):
+def classify(db_path, input_file, confidence=0.01, threads=8, min_hit_gr=2):
 
     db_path = os.path.realpath(db_path)
     current_dir = path.join(path.dirname(__file__))
@@ -211,7 +211,13 @@ def classify(db_path, input_file, confidence=0.01):
         "-t",
         os.path.join(database_path, "taxo.k2d"),
         "-o",
-        os.path.join(database_path, "opts.k2d"),]
+        os.path.join(database_path, "opts.k2d"),
+        "-T",
+        str(confidence),
+        "-p",
+        str(threads),
+        "-g",
+        str(min_hit_gr)]
 
     argv.append(input_file) # add input file at the end
 
@@ -227,8 +233,7 @@ def classify(db_path, input_file, confidence=0.01):
     output.columns = ['outcome', 'seqid', 'taxid', 'seqlen', 'kmers']
 
     return output
-
-
+    
 def prepare_db(db_path, ref_path):
     
     current_dir = path.join(path.dirname(__file__))
@@ -256,7 +261,73 @@ def prepare_db(db_path, ref_path):
         db_path,]
     subprocess.call(cmd3)
 
-       
+def decontaminate_paired(db_path, input_file1, input_file2, output, confidence=0.5, threads=12, min_base_qual=22):
+
+    db_path = os.path.realpath(db_path)
+    current_dir = path.join(path.dirname(__file__))
+    classify_bin = os.path.join(current_dir + "/kraken2_install", "kraken2")
+    
+    database_path = find_database(db_path)
+    
+    if database_path is None:
+        LOG.error("This is not a valid database... exiting".format(db_path))
+        sys.exit(1)
+    if confidence < 0 or confidence > 1:
+        LOG.error("Confidence must be between 0 and 1 inclusive".format(confidence))
+        sys.exit(1)
+
+
+    cmd = [classify_bin,
+        "--db",
+        db_path,
+        "--threads",
+        str(threads),
+        "--confidence",
+        str(confidence),
+        "--minimum-base-quality",
+        str(min_base_qual),
+        "--unclassified-out",
+        output + "#.fastq",
+        "--paired",
+        input_file1,
+        input_file2,
+        ]
+
+    subprocess.call(cmd, stdout=subprocess.DEVNULL)
+
+def decontaminate_single(db_path, input_file, output, confidence=0.5, threads=8, min_base_qual=22):
+
+    db_path = os.path.realpath(db_path)
+    current_dir = path.join(path.dirname(__file__))
+    classify_bin = os.path.join(current_dir + "/kraken2_install", "kraken2")
+    
+    database_path = find_database(db_path)
+    
+    if database_path is None:
+        LOG.error("This is not a valid database... exiting".format(db_path))
+        sys.exit(1)
+    if confidence < 0 or confidence > 1:
+        LOG.error("Confidence must be between 0 and 1 inclusive".format(confidence))
+        sys.exit(1)
+        
+    cmd = [classify_bin,
+        "--db",
+        db_path,
+        "--threads",
+        str(threads),
+        "--confidence",
+        str(confidence),
+        "--minimum-base-quality",
+        str(min_base_qual),
+        "--unclassified-out",
+        output + ".fastq",
+        "--single",
+        input_file,
+        ]
+    
+    subprocess.call(cmd, stdout=subprocess.DEVNULL)
+
+
 
 def format_bytes(size):
     current_suffix = "B"
@@ -278,19 +349,22 @@ def clean_up(filenames):
         "Cleaned up {} of space\n".format(space_freed)
     )
 
-
-def clean_db(args):
-    os.chdir(args.db)
-    if args.pattern:
-        clean_up(glob.glob(args.pattern, recursive=False))
-    else:
-        clean_up(
-            [
-                "data",
-                "library",
-                "taxonomy",
-                "seqid2taxid.map",
-                "prelim_map.txt",
-            ]
-        )
+#
+#def clean_db(args):
+#    os.chdir(args.db)
+#    if args.pattern:
+#        clean_up(glob.glob(args.pattern, recursive=False))
+#    else:
+#        clean_up(
+#            [
+#                "data",
+#                "library",
+#                "taxonomy",
+#                "seqid2taxid.map",
+#                "prelim_map.txt",
+#            ]
+#        )
+#
+#         ]
+#        )
 

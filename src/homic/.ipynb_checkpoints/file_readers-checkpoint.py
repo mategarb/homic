@@ -6,6 +6,8 @@ import os
 import pandas as pd
 import re
 import ete3
+from Bio.Seq import Seq
+
 #####################################################################################################
 #####################################################################################################
 #####################################################################################################
@@ -43,6 +45,23 @@ def fasta(path):
     return fasta_dict # fasta_dict is a dictionary of 2 element lists (header + sequence)
 
 
+def save_fasta_as_rev_comp(path):
+    f_dict = fasta(path)
+    path2 = path.replace(".fasta", "")
+    path2 = path2 + "_rc.fasta"
+    with open(path2, 'a+') as f:
+        for spec, info in f_dict.items():
+            print(info[0].rstrip(), file = f) # fasta header
+            tmp_seq = info[1]
+            tmp_seq = tmp_seq.replace("A", "t").replace("C", "g").replace("T", "a").replace("G", "c")
+            tmp_seq = tmp_seq.upper()
+         
+            # reverse strand
+            tmp_seq = tmp_seq[::-1]
+        
+            print(tmp_seq, file = f) # reversing complementary the sequence
+
+
 #####################################################################################################
 #####################################################################################################
 #####################################################################################################
@@ -78,6 +97,26 @@ def fastq(path):
         os.remove(decompressed_real_sample_R2_file)
         
     return r2_header_lines, r2_read_lines, r2_qual_lines
+
+
+def save_fastq_as_rev_comp(path):
+    header_lines, read_lines, qual_lines = fastq(path)
+    path2 = path.replace(".fastq", "")
+    path2 = path2 + "_rc.fastq"
+    n = len(read_lines)
+    
+    with open(path2, 'a+') as f:
+        for i in range(n):
+            print(header_lines[i].strip(), file = f) # fastq header
+            tmp_seq = read_lines[i]
+            tmp_seq = tmp_seq.replace("A", "t").replace("C", "g").replace("T", "a").replace("G", "c")
+            tmp_seq = tmp_seq.upper()
+            tmp_seq = tmp_seq[::-1]
+            print(tmp_seq.strip(), file = f) # rev comp seq
+            print('+', file = f) # strand
+            print(qual_lines[i].strip(), file = f) # quality sequence
+
+
 
 #####################################################################################################
 #####################################################################################################
