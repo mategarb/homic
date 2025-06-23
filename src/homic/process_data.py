@@ -128,7 +128,7 @@ def assemble_decon(path, file1, file2, threads="16", option="paired"):
     print("Done!")
 
 
-
+# next steps are outside in bash, to map assemblies to reads and bin (optionall), finally perofrm blastn
 #bam_header = {
 #        'HD': {'VN': '1.5', 'SO':'unsorted'},
 #        'RG': [{'ID': '0', 'SM' : 'unknown_sample', 'PL' : 'ILLUMINA' }]
