@@ -21,23 +21,8 @@ from Bio import Entrez
 import time
 import re
 
-#cat *_1.fastq* >> mergedfile.fastq
-#
-#def merge_fastq(path):
-#    cmd1 = ["cat",
-#           "*" + path + "/" + "_1.fastq*",
-#           ">>",
-#           path + "/" + "all_merged_1.fastq",]
-#    print(cmd1)
-#    subprocess.call(cmd1)
-#    
-#    cmd2 = ["cat",
-#           "*" + path + "/" + "_2.fastq*",
-#           ">>",
-#           path + "/" + "all_merged_2.fastq",]
-#    subprocess.call(cmd2)
     
-def trim_decon(path, file1, file2, threads="32", option="paired"):
+def trim_decon(path, dbpath, file1, file2, threads="32", option="paired"):
 
 # 1. trimming
     file11 = file1.replace(".fastq", "_trimmed.fastq")
@@ -68,11 +53,10 @@ def trim_decon(path, file1, file2, threads="32", option="paired"):
 
 # 2. decontaminating
     print("Decontaminating reads")
-    db_path = "/proj/berzelius-2024-407/users/x_magar/dbs/mm_wgs"
 
     output = file1.replace("_1.fastq", "_k2")
     
-    kraken2.decontaminate_paired(db_path = db_path, 
+    kraken2.decontaminate_paired(db_path = dbpath, 
                                 input_file1 = file11,
                                 input_file2 = file21,
                                 output = output,
@@ -80,7 +64,7 @@ def trim_decon(path, file1, file2, threads="32", option="paired"):
     os.remove(file11)
     os.remove(file21)
 
-def assemble_decon(path, file1, file2, threads="16", option="paired"):
+def assemble_decon(path, dbpath, file1, file2, threads="16", option="paired"):
 # 3. assembling
 #    print("Assembling")
 #    cmd2 = ["megahit",
@@ -90,8 +74,8 @@ def assemble_decon(path, file1, file2, threads="16", option="paired"):
 #            path,]
 #    subprocess.call(cmd2)
 
-    paths_r1 = output + "_1.fastq"
-    paths_r2 = output + "_2.fastq"
+    paths_r1 = file1
+    paths_r2 = file2
     cmd2 = ["megahit",
             "-1",
             paths_r1,
@@ -100,18 +84,14 @@ def assemble_decon(path, file1, file2, threads="16", option="paired"):
             "-o",
             path + "/out_assembly",
             "-t",
-            threads,
-            "--min-count",
-            "2",
-            "--k-list",
-            "21,41,61,81,99",]  # Generic metagenomes settings, default
+            threads,]  # Generic metagenomes settings, default
 
     shutil.rmtree(path + '/out_assembly', ignore_errors=True)
     
     subprocess.call(cmd2)
     
-    os.remove(paths_r1)
-    os.remove(paths_r2)
+    #os.remove(paths_r1)
+    #os.remove(paths_r2)
     
     
 # 4. decontaminating II 
@@ -119,7 +99,7 @@ def assemble_decon(path, file1, file2, threads="16", option="paired"):
     file = path + "/out_assembly/final.contigs.fa"
 
     output = file.replace("out_assembly/final.contigs.fa", "mic_contigs")
-    kraken2.decontaminate_single(db_path = db_path, 
+    kraken2.decontaminate_single(db_path = dbpath, 
                       input_file = file,
                       output = output,
                       threads = threads)
@@ -128,7 +108,36 @@ def assemble_decon(path, file1, file2, threads="16", option="paired"):
     print("Done!")
 
 
+def run_blastn(path_fa, path_db, path_out, nthreads="16", mts="5", evalue = "1e-6", ofmt="6 qseqid sseqid pident length evalue bitscore score stitle sgi sacc"):
 
+    #cmd = ["export PATH=$HOME/ncbi-blast-2.16.0+/bin:$PATH",]  # Generic metagenomes settings, default
+    #print(cmd)
+    #subprocess.call(cmd)
+    
+    #makeblastdb -in ./GbBacU/all_seqs.fna -dbtype nucl
+    
+    cmd2 = ["blastn",
+            "-query",
+            path_fa,
+            "-db",
+           path_db,
+           "-num_threads",
+           nthreads,
+           "-max_target_seqs",
+            mts,
+            "-evalue",
+            evalue,
+            "-outfmt",
+            ofmt,
+           "-out",
+           path_out]  # Generic metagenomes settings, default
+    
+    subprocess.call(cmd2)
+
+
+## below is snippet from the Brittas repo
+
+# next steps are outside in bash, to map assemblies to reads and bin (optionall), finally perofrm blastn
 #bam_header = {
 #        'HD': {'VN': '1.5', 'SO':'unsorted'},
 #        'RG': [{'ID': '0', 'SM' : 'unknown_sample', 'PL' : 'ILLUMINA' }]
