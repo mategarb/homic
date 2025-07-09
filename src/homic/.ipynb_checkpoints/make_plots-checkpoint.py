@@ -6,6 +6,7 @@ import matplotlib.pyplot as plt
 import matplotlib.gridspec as gridspec
 import seaborn as sns
 import pandas as pd
+from collections import Counter
 #####################################################################################################
 #####################################################################################################
 #####################################################################################################
@@ -218,8 +219,6 @@ def bench_barplot(pearson_d, taxa_orders, path, mtype):
         
         
 
-
-
 def bray_curtis_bench(braycurtis_d, taxa_orders, path):
     # Plot BC
     fig = plt.figure(figsize=(40,10))
@@ -258,6 +257,39 @@ def bray_curtis_bench(braycurtis_d, taxa_orders, path):
     fname = time.strftime("%Y%m%d-%H%M%S")
         
     plt.savefig(path + fname + '_bray-curtis.png')
+
+
+def relative_abundance(data, data_name, thr = 0.01, ntop = 10):
+
+    nr = round(data.shape[0] * thr)
+    data2 = data.iloc[:nr]
+    counts = Counter(data2["genus"])
+    
+    specs = list(counts.keys())
+    freqs = list(counts.values())
+    
+    inds = np.argsort(freqs)
+    specs = [specs[i] for i in inds]
+    freqs = [freqs[i] for i in inds]
+    
+    species = (data_name)
+    
+    width = 0.5
+    c = specs[-ntop:]
+    v = freqs[-ntop:] 
+    weight_counts = dict(zip(c, v))
+    
+    fig, ax = plt.subplots()
+    bottom = np.zeros(3)
+    
+    for boolean, weight_count in weight_counts.items():
+        p = ax.bar(species, weight_count, width, label=boolean, bottom=bottom)
+        bottom += weight_count
+    
+    ax.set_title("Genus frequency")
+    ax.legend(loc="upper right")
+    
+    plt.show()
 
 #print("Done!")
 #print("Average length: ")

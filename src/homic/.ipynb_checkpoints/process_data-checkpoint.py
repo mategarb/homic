@@ -108,7 +108,7 @@ def assemble_decon(path, dbpath, file1, file2, threads="16", option="paired"):
     print("Done!")
 
 
-def run_blastn(path_fa, path_db, path_out, nthreads="16", mts="5", evalue = "1e-6", ofmt="6 qseqid sseqid pident length evalue bitscore score stitle sgi sacc"):
+def run_blastn(path_fa, path_db, path_out, nthreads="16", evalue = "1e-6", ofmt="6 qseqid sseqid pident length evalue bitscore score stitle"):
 
     #cmd = ["export PATH=$HOME/ncbi-blast-2.16.0+/bin:$PATH",]  # Generic metagenomes settings, default
     #print(cmd)
@@ -123,8 +123,6 @@ def run_blastn(path_fa, path_db, path_out, nthreads="16", mts="5", evalue = "1e-
            path_db,
            "-num_threads",
            nthreads,
-           "-max_target_seqs",
-            mts,
             "-evalue",
             evalue,
             "-outfmt",
@@ -134,6 +132,54 @@ def run_blastn(path_fa, path_db, path_out, nthreads="16", mts="5", evalue = "1e-
     
     subprocess.call(cmd2)
 
+
+def clean_word(word):
+    word = word.split(' ', 1)[1]
+    word = word.replace('MAG: ', '')
+    word = word.replace('uncultured ', '')
+    return word
+    
+
+
+def select_species(record):
+    record = record.split()[:2]
+    record = ' '.join(record)
+    return record
+    
+def select_genus(record):
+    record = record.split()[:1]
+    record = ' '.join(record)
+    return record
+
+def read_n_clean_blastn(path_blast, topn = 1, evalue = 0.05, drop_sp = True):
+    data = pd.read_csv(path_blast, header = None, delimiter = "\t")
+    data = data.rename({0: "contig_id", 1: "subject_id", 2: "pident", 3: "length", 4: "evalue", 5: "bitscore", 6: "score", 7: "subject_title"}, axis='columns')
+
+    # removing reduntant words from titles to get species
+    words = data["subject_title"].to_list()
+    recs = list(map(clean_word, words))
+    all_species = list(map(select_species, recs))
+    all_genus = list(map(select_genus, recs))
+    
+    data["species"] = all_species
+    data["genus"] = all_genus
+    
+    data = data[data['evalue'] < evalue]
+
+    # sorting by two columns: evalue & bitscore
+    data = data.sort_values(by=['evalue'], ascending=True)
+    data = data.sort_values(by=['bitscore'], ascending=False)
+
+    # remove duplicated hits  
+    data = data.drop_duplicates(subset=['contig_id','species'])
+    
+    # droping undefined species
+    if drop_sp:
+        rem_und = ["sp." not in spec for spec in data["species"]]
+        data = data[rem_und]
+
+    return data
+    
 
 ## below is snippet from the Brittas repo
 

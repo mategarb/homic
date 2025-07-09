@@ -7,7 +7,7 @@ import os
 import subprocess
 import shutil
 import sys
-sys.path.append('/proj/berzelius-2024-407/users/x_magar/homic/src') # to load our package
+sys.path.append('/gpfs/commons/home/mgarbulowski/homic_package/src') # to load our package
 from homic import file_readers, kraken2, process_data
 
 # db creation for mouse
