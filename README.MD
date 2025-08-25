@@ -17,7 +17,7 @@ from homic import file_readers, simulate_16S, dl_model
 * src
     - main scripts of the package
 * tests
-    - examples
+    - examples / tutorials
 * models
     - precomputed DL models and encoders for the species specified in the list files/65sp.txt
 * files
