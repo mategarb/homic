@@ -4,6 +4,7 @@ import numpy as np
 import matplotlib
 import matplotlib.pyplot as plt
 import matplotlib.gridspec as gridspec
+import matplotlib.colors as mcolors
 import seaborn as sns
 import pandas as pd
 from collections import Counter
@@ -259,7 +260,7 @@ def bray_curtis_bench(braycurtis_d, taxa_orders, path):
     plt.savefig(path + fname + '_bray-curtis.png')
 
 
-def relative_abundance(data, data_name, thr = 0.01, ntop = 10):
+def relative_abundance_single(data, data_name, thr = 0.01, ntop = 10):
 
     nr = round(data.shape[0] * thr)
     data2 = data.iloc[:nr]
@@ -288,6 +289,75 @@ def relative_abundance(data, data_name, thr = 0.01, ntop = 10):
     
     ax.set_title("Genus frequency")
     ax.legend(loc="upper right")
+    
+    plt.show()
+
+
+def relative_abundance_multi(listed_data, data_names, n=10, level="genus"):
+    
+    # compute counts for each df in a loop
+
+    counts = [Counter(df[level]) for df in listed_data]
+    
+    # create DataFrame from all counts
+    df = pd.DataFrame(counts).fillna(0).astype(int)
+    
+    # convert to percentages by row
+    df_percent_row = df.div(df.sum(axis=1), axis=0) * 100
+    
+    # sort columns by their total sum
+    df_sorted = df_percent_row[df_percent_row.sum().sort_values(ascending=False).index]
+    
+    # split
+    df_first = df_sorted.iloc[:, :n]
+    df_others = df_sorted.iloc[:, n:]
+    
+    # create "Other" column by summing the rest
+    others_col = df_others.sum(axis=1).rename("Other")
+    
+    # Concatenate into final DataFrame
+    df_final = pd.concat([df_first, others_col], axis=1)
+    
+    dftop = df_final
+    dcttop = dftop.to_dict('series')
+    
+    weight_counts = dcttop
+    width = 0.5
+    
+    fig, ax = plt.subplots()
+    bottom = np.zeros(3)
+    
+    
+    colors_pastel = [
+        "#FF9999",  # Bright Pastel Red
+        "#99FF99",  # Bright Pastel Green
+        "#9999FF",  # Bright Pastel Blue
+        "#FFCC99",  # Bright Pastel Orange
+        "#CC99FF",  # Bright Pastel Purple
+        "#99FFFF",  # Bright Pastel Cyan
+        "#FFFF99",  # Bright Pastel Yellow
+        "#FF99CC",  # Bright Pastel Pink
+        "#FFCC66",  # Bright Pastel Peach
+        "#99FFCC",  # Bright Pastel Mint
+        "#CCCCCC",  # Bright Pastel Gray
+    ]
+    
+    # function to darken a color
+    def darken_color(hex_color, factor=0.65):
+        rgb = mcolors.hex2color(hex_color)
+        darkened = tuple([max(0, c * factor) for c in rgb])
+        return mcolors.to_hex(darkened)
+    
+    # generate darker colors
+    dark_pastels = [darken_color(c, 0.75) for c in colors_pastel]
+    
+    for (boolean, weight_count), color in zip(weight_counts.items(), dark_pastels):
+        p = ax.bar(data_names, weight_count, width, label=boolean, bottom=bottom, color=color)
+        bottom += weight_count
+    
+    
+    ax.set_ylabel("Relative abundance (%)")
+    ax.legend(loc='center left', bbox_to_anchor=(1, 0.5))
     
     plt.show()
 

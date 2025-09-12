@@ -151,7 +151,7 @@ def select_genus(record):
     record = ' '.join(record)
     return record
 
-def read_n_clean_blastn(path_blast, topn = 1, evalue = 0.05, drop_sp = True):
+def read_n_clean_blastn(path_blast, top_hits = True, evalue = 0.05, drop_sp = True):
     data = pd.read_csv(path_blast, header = None, delimiter = "\t")
     data = data.rename({0: "contig_id", 1: "subject_id", 2: "pident", 3: "length", 4: "evalue", 5: "bitscore", 6: "score", 7: "subject_title"}, axis='columns')
 
@@ -166,9 +166,6 @@ def read_n_clean_blastn(path_blast, topn = 1, evalue = 0.05, drop_sp = True):
     
     data = data[data['evalue'] < evalue]
 
-    # sorting by two columns: evalue & bitscore
-    data = data.sort_values(by=['evalue'], ascending=True)
-    data = data.sort_values(by=['bitscore'], ascending=False)
 
     # remove duplicated hits  
     data = data.drop_duplicates(subset=['contig_id','species'])
@@ -177,6 +174,17 @@ def read_n_clean_blastn(path_blast, topn = 1, evalue = 0.05, drop_sp = True):
     if drop_sp:
         rem_und = ["sp." not in spec for spec in data["species"]]
         data = data[rem_und]
+
+    if top_hits:
+        data = (data.groupby("contig_id", group_keys=False)
+          .apply(lambda g: g[g["evalue"] == g["evalue"].min()])
+          .groupby("contig_id", group_keys=False)
+          .apply(lambda g: g[g["bitscore"] == g["bitscore"].max()])
+          .reset_index(drop=True))
+        
+    # fianlly, sorting by two columns: evalue & bitscore
+    data = data.sort_values(by=['evalue'], ascending=True)
+    data = data.sort_values(by=['bitscore'], ascending=False)
 
     return data
     

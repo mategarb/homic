@@ -38,29 +38,45 @@ print("Num GPUs Available: ", len(tf.config.list_physical_devices('GPU')))
 # outs
 #output_path_folder = '/gpfs/commons/home/mgarbulowski/proj_shm/outputs/training_data_asf_16S_400k' # training_data_preselected+noisy_1mln
 #output_path_folder = '/gpfs/commons/home/mgarbulowski/proj_shm/outputs/training_data_spf_preselected+noisy_1mln_v2'
-output_path_folder = '/gpfs/commons/home/mgarbulowski/proj_shm/outputs/training_data_asf_16S_500k_plusMice'
+#output_path_folder = '/gpfs/commons/home/mgarbulowski/proj_shm/outputs/training_data_asf_16S_500k_plusMice'
+output_path_folder = '/gpfs/commons/home/mgarbulowski/proj_shm/outputs'
+
 
 #output_path = output_path_folder + "/SRR25456942_asf"
 #output_path = output_path_folder + "/SRR25456942_spf"
 #output_path = output_path_folder + "/SRR25456942_spf_asf"
-output_path = output_path_folder + "/SRR25456942_asfm"
+output_path = output_path_folder + "/time_benchmark_data"
+# training with error
+species_path_tra_e = output_path + "/SRR25456942_3prime_1M_er_tra_genus_species.txt"
+sim_data_tra_e = output_path + "/SRR25456942_3prime_1M_er_tra_simulated.fastq"
+
 
 figs_path = "/gpfs/commons/home/mgarbulowski/proj_shm/figs"
 
-nsp = 10000
+#nsp = 10000
 # validation
-species_path_val = output_path + "_" + str(nsp) + "ps_val_genus_species.txt"
-sim_data_val = output_path + "_" + str(nsp) + "ps_val_simulated.fastq"
+#species_path_val = output_path + "_" + str(nsp) + "ps_val_genus_species.txt"
+#sim_data_val = output_path + "_" + str(nsp) + "ps_val_simulated.fastq"
 
 # training data 1
 #output_path_e = output_path_folder + "/training_data_asf_16S/SRR25456942_asf_er"
-species_path_tra_e = output_path + "_er_tra_genus_species.txt"
-sim_data_tra_e = output_path + "_er_tra_simulated.fastq"
+#species_path_tra_e = output_path + "_er_tra_genus_species.txt"
+#sim_data_tra_e = output_path + "_er_tra_simulated.fastq"
 
 # training data 2
 #output_path = output_path_folder + "/training_data_asf_16S/SRR25456942_asf"
-species_path_tra = output_path + "_tra_genus_species.txt"
-sim_data_tra = output_path + "_tra_simulated.fastq"
+#species_path_tra = output_path + "_tra_genus_species.txt"
+#sim_data_tra = output_path + "_tra_simulated.fastq"
+
+# validation
+output_path = output_path_folder + "/training_data_3prime_1000_cg"
+species_path_val = output_path + "/SRR25456942_3prime_10000ps_val_genus_species.txt"
+sim_data_val = output_path + "/SRR25456942_3prime_10000ps_val_simulated.fastq"
+
+# training
+#species_path_tra = output_path + "/SRR25456942_3prime250_tra_genus_species.txt"
+#sim_data_tra = output_path + "/SRR25456942_3prime250_tra_simulated.fastq"
+
 
 #################################################################################
 ################################# Prepare data
@@ -68,24 +84,24 @@ sim_data_tra = output_path + "_tra_simulated.fastq"
 # validation
 ts = True # skip taxa info, just labels
 species_info_val = file_readers.species_outcome(species_path_val)
+
+
 prep_data_val = dl_model.prepare_data(sim_data_val, species_info_val, ts)
 oh_encoder_val = dl_model.one_hot_encoder(prep_data_val)
 
 # deep learning model and training 1
-species_info_tra = file_readers.species_outcome(species_path_tra)
+#species_info_tra = file_readers.species_outcome(species_path_tra)
 species_info_tra_e = file_readers.species_outcome(species_path_tra_e)
 
-prep_data_tra = dl_model.prepare_data(sim_data_tra, species_info_tra, ts)
+#prep_data_tra = dl_model.prepare_data(sim_data_tra, species_info_tra, ts)
 prep_data_tra_e = dl_model.prepare_data(sim_data_tra_e, species_info_tra_e, ts)
 
-prep_data_tra_dfs = [prep_data_tra, prep_data_tra_e]
-prep_data_tra_all = pd.concat(prep_data_tra_dfs, ignore_index=True)
+#prep_data_tra_dfs = [prep_data_tra, prep_data_tra_e]
+prep_data_tra_all = prep_data_tra_e #pd.concat(prep_data_tra_dfs, ignore_index=True)
+
 oh_encoder = dl_model.one_hot_encoder(prep_data_tra_all)
 #oh_encoder_tra_e = dl_model.one_hot_encoder(prep_data_tra_e)
 # deep learning model and training 2
-
-
-
 
 
 # merging both training data sets, no error (0.5 mln) + error (0.5 mln)
@@ -95,8 +111,6 @@ oh_encoder = dl_model.one_hot_encoder(prep_data_tra_all)
 
 # species_info_tra_all = {**species_info_tra, **species_info_tra_e}
 # print(species_info_tra_all)
-
-
 
 
 #oh_encoder_tra_all = prep_data_tra_all["one_hot_tensor"] #np.concatenate((oh_encoder_tra, oh_encoder_tra_e))

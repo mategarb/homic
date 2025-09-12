@@ -15,14 +15,14 @@ from homic import file_readers, kraken2, process_data
 # kraken2.prepare_db(db_path, ref_path)
 
 # db creation for human
-db_path = "/gpfs/commons/home/mgarbulowski/dbs/mm_wgs"
+db_path = "/gpfs/commons/home/mgarbulowski/dbs/hs_wgs"
 #ref_path = "/gpfs/commons/home/mgarbulowski/proj_shm/references/GCF_000001635.27_GRCm39_genomic.fna"
 #kraken2.prepare_db(db_path, ref_path)
 
 #breakpoint()
 
 # call the fun
-path = "/gpfs/commons/home/mgarbulowski/data_moumic"
+path = "/gpfs/commons/home/mgarbulowski/data_hummic"
 
 #file1 = path + "/all_reads_1.fastq"
 #file2 = path + "/all_reads_2.fastq"
@@ -36,6 +36,17 @@ path = "/gpfs/commons/home/mgarbulowski/data_moumic"
 #file1 = path + "/ERR5838529_k2_1.fastq"
 #file2 = path + "/ERR5838529_k2_2.fastq"
 #process_data.assemble_decon(path, db_path, file1, file2)
+
+print("hs 1 start")
+fa_path1 = "/gpfs/commons/home/mgarbulowski/data_hummic/mic_contigs.fastq"
+db_path1 = "/gpfs/commons/home/mgarbulowski/ref_dbs/GbBacU/all_seqs.fna"
+out1 = "/gpfs/commons/home/mgarbulowski/data_hummic/hs_blastn.txt"
+process_data.run_blastn(fa_path1, db_path1, out1)
+print("hs 1 done")
+
+breakpoint()
+
+
 print("1 start")
 fa_path1 = "/gpfs/commons/home/mgarbulowski/data_moumic/ERR5838516_mic_contigs.fastq"
 db_path1 = "/gpfs/commons/home/mgarbulowski/ref_dbs/GbBacU/all_seqs.fna"

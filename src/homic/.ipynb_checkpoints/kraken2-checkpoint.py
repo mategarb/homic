@@ -31,12 +31,13 @@ import urllib.error
 import urllib.parse
 import urllib.request
 import zipfile
-
+import ete3
+from Bio.Seq import Seq
 from os import path
 from subprocess import Popen, PIPE
 import pandas as pd
 from io import StringIO
-
+import numpy as np
 LOG = None
 SCRIPT_PATHNAME = None
 
@@ -327,7 +328,31 @@ def decontaminate_single(db_path, input_file, output, confidence=0.5, threads=8,
     
     subprocess.call(cmd, stdout=subprocess.DEVNULL)
 
-
+def evaluate_kraken(krk_path, gs_path):
+    
+    k2outc = pd.read_csv(krk_path)
+    rows_nams = pd.read_csv(gs_path, sep=' ', header = None,usecols=[1], engine='python', names = ['fastq']) # full header only
+    info = pd.read_csv(gs_path, sep='[ ,:,|]', header = None, usecols=[5, 6, 7, 9, 10], names = ['tile', 'x', 'y','taxa1', 'taxa2'], engine='python') # new 
+    
+    info['truth_taxa'] = info['taxa1'] + ' ' + info['taxa2']
+    
+    ncbi = ete3.NCBITaxa()
+    taxids = ncbi.get_name_translator(info["truth_taxa"])
+    taxidsf = sum(list(taxids.values()), []) # flatten the list
+    taxids_dict = dict(zip(taxids.keys(), taxidsf)) ## swapping values with keys
+    
+    info["taxids_full_gs"] = [*map(taxids_dict.get, info["truth_taxa"].tolist())] # mapping between species and tax ids, to get tax ids only
+    info["taxids_full_k2"] = k2outc["taxid"]
+    
+    info = info[info['taxids_full_k2'] != 0]
+    info = info[np.invert(pd.isnull(info['taxids_full_gs'].tolist()))]
+    
+    y_true = info["taxids_full_gs"].tolist()
+    y_pred = info["taxids_full_k2"].tolist()
+    correct = sum(t == p for t, p in zip(y_true, y_pred))
+    accuracy = correct / len(y_true)
+    return accuracy
+    
 
 def format_bytes(size):
     current_suffix = "B"

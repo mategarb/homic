@@ -5,26 +5,19 @@ from homic import file_readers, dl_evaluation, make_plots, dl_model, kraken2
 import pickle
 import os
 import time
-
 import io
 import re
-#import tensorflow.keras as keras
-#from tensorflow.keras import Model
-
 import numpy as np
 import pandas as pd
 import statistics
 import seaborn as sns
-
 import matplotlib.pyplot as plt
 from sklearn.metrics import classification_report, confusion_matrix
 from numpy import argmax
 from scipy.spatial import distance
-
 from functools import reduce
 from scipy import stats
 from sklearn import metrics
-
 #from umi_tools import UMIClusterer
 from collections import Counter, defaultdict
 from itertools import islice,tee

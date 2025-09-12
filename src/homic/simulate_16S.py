@@ -137,10 +137,15 @@ def training_data(n_reads, output_path, score_thr, mic_refs, r2_header_lines, r2
                 # Randomly pick (species) sequence from the 16S fragment from the dictionary
                 random_key = random.choice(list(fasta_dict.keys())) # key = species name
                 random_sequence = fasta_dict[random_key] # select nuc. sequence for a given species
+                
+                if len(random_sequence) == 2: # in case of creating 2-elements list
+                    random_sequence = random_sequence[1]
+                    
                 # Store the genus+species which was randomly selected
                 R2_length = len(r2_read_lines[i]) # define read length based on real data
                 # randomly select where the R2 read is gonna start from a normal distibuiton
-                start = len(random_sequence) - int(np.random.randint(R2_length, len(random_sequence) - R2_length)) 
+                
+                start = len(random_sequence) - int(np.random.randint(R2_length, len(random_sequence) - R2_length))
                 # total length - random value
                 start_vec.append(start/(len(random_sequence) - R2_length))
 
@@ -152,7 +157,7 @@ def training_data(n_reads, output_path, score_thr, mic_refs, r2_header_lines, r2
                 scores_vec = []
                 
                 for key0, value0 in fasta_dict.items():
-                    seq2 = Seq(value0)
+                    seq2 = Seq(value0[1])
                     
                     if key0 not in random_key:
                         tmp_aligns = aligner.score(seq2, seq1)
@@ -223,7 +228,110 @@ def training_data(n_reads, output_path, score_thr, mic_refs, r2_header_lines, r2
     species_list = list(map(lambda x: x, set(random_only_species_list)))
     return all_scores, start_vec, qual_vec, species_list
 
-        
+# faster version, without alignment
+def training_data_fast(n_reads, output_path, mic_refs, r2_header_lines, r2_read_lines, r2_qual_lines, impute_errors, trunc_range, print_stats):
+    
+    random_species_list = [] # To store what genus+species got picked
+    random_only_species_list = [] # To store what genus+species got picked
+    
+    output_folder = output_path # collect name of the folder
+    fasta_dict = mic_refs
+    r2_output_file_name = output_folder + '_tra_simulated.fastq'
+    start_vec = []
+    qual_vec = []
+    head_vec = []
+    seq_lns = []
+ 
+    totnor = len(r2_read_lines) - 1 # total number of reads
+    
+    ii = 0 # so it stops when it reaches n reads with the alignment score < thr
+    #def create_simulated_data(i):
+    with open(r2_output_file_name, 'a+') as f:
+            
+            for i in range(n_reads):
+                # randomly pick (species) sequence from the 16S references list
+                random_key = random.choice(list(fasta_dict.keys())) # key is a species name
+                random_sequence = fasta_dict[random_key] # select ref nuc. sequence for a given species
+
+                ri = random.randint(0, totnor) # randomize position of a read
+                
+                if len(random_sequence) >= 2: # in case of creating 2-elements list
+                    random_sequence = random_sequence[1]
+                    
+                # in case reference is shorter than a read, randomize read length
+
+                if len(random_sequence) <= len(r2_read_lines[ri]):
+                    R2_length = random.choice([10,20,30,40,50,60,70,80,90,100]) # then user needs to assume that minimal length of genome is 101
+                else:
+                    R2_length = len(r2_read_lines[ri]) # define read length based on real data
+                
+                # randomly select where the R2 read is gonna start from a normal distibuiton
+                # start = len(random_sequence) - int(np.random.randint(R2_length, len(random_sequence) - R2_length)) # older version 
+                start = int(np.random.randint(0, len(random_sequence) - R2_length - 1))
+                
+                # total length - random value
+                start_vec.append(start/(len(random_sequence) - R2_length))
+
+                random_sequence_read = random_sequence[start:start + R2_length]
+
+                # randomize quality
+                qual_seq = r2_qual_lines[ri].rstrip()
+                qual_vec.append(list(map(ord, list(r2_qual_lines[ri]))))
+
+                # randomize header
+                head_seq = r2_header_lines[ri].rstrip()
+                head_vec.append(list(map(ord, list(r2_header_lines[ri]))))
+                
+                random_species_list.append(head_seq.rstrip()+"|"+random_key) 
+
+                random_only_species_list.append(random_key)
+    
+                # truncation            
+                if not (trunc_range[0] == 0 and trunc_range[1] == 0): # truncating the read sequence
+                    truncate_left = round(random.uniform(trunc_range[0],trunc_range[1])*len(random_sequence_read)) # from the left side
+                    truncate_right = round(random.uniform(trunc_range[0],trunc_range[1])*len(random_sequence_read)) # from the right side
+
+                    random_sequence_read_trun = random_sequence_read[truncate_left:(len(random_sequence_read) - truncate_right)]
+                    if len(random_sequence_read_trun) == 0: # in case everything is truncated and empty sequence is left
+                                random_sequence_read_trun = random_sequence_read # take a full sequence without truncation
+                else:
+                    random_sequence_read_trun = random_sequence_read # do nothing, just pass the read forward
+
+                # errors imputation
+                if impute_errors:
+                    errors_no = [0, 1, 2] # no error, 1 error
+                    num_errors = random.choices(errors_no, weights=(1, 2, 0), k=1)
+                    random_sequence_read_trun = impute_seq_error(random_sequence_read_trun, num_errors)
+                            
+                # save to output file
+                seq_lns.append(len(random_sequence_read_trun))
+                        
+                print(head_seq, file = f) # fastq header
+                print(random_sequence_read_trun, file = f) # randomly picked sequence from part of the 16S gene
+                print('+', file = f) # strand
+                print(qual_seq, file = f) # quality sequence
+
+    # saving gold truth info with species / genus
+    gsp_output_file_name = os.path.join(output_folder + '_tra_genus_species.txt')
+    with open(gsp_output_file_name, 'a+') as f:
+        for item in random_species_list:
+            print(item, file = f)
+            
+
+
+    if print_stats:
+        # using Counter to find frequency of elements
+        frequency = collections.Counter(random_only_species_list)
+        # printing the frequency
+        print("Data generated with ", len(random_species_list), " reads")
+        print("Number of species included in the data: ", len(dict(frequency)))
+
+        # print average length of reads
+        print("Average reads length:")
+        print(round(np.mean(seq_lns), 4))
+    
+    species_list = list(map(lambda x: x, set(random_only_species_list)))
+    return start_vec, qual_vec, head_vec, species_list
         
 #####################################################################################################
 #####################################################################################################
@@ -259,22 +367,36 @@ def validation_data(n_reads, output_path, mic_refs, r2_header_lines, r2_read_lin
         for key, value in mic_refs.items():            
             random_key = key #random.choice(list(fasta_dict)) # key = species name
             random_only_species_list.append(random_key)
+
             random_sequence = value # select nuc. sequence for a given species
+
+            if len(random_sequence) == 2: # in case of creating 2-elements list
+                    random_sequence = random_sequence[1]
+            
+                                
             for i, header in enumerate(r2_header_lines):
                 # Randomly pick (species) sequence from the 16S fragment from the dictionary
                 #random_key = random.choice(list(mic_refs)) # key = species name
                 #random_sequence = mic_refs[random_key] # select nuc. sequence
                 # Store the genus+species which was randomly selected
                 random_species_list.append(header.rstrip()+"|"+random_key) # it will be used as gold standard reference
-                R2_length = len(r2_read_lines[i])
+                
+                
+                if len(random_sequence[1]) <= len(r2_read_lines[i]):
+                    R2_length = random.choice([10,20,30,40,50,60,70,80,90,100]) # then user needs to assume that minimal length of genome is 101
+                else:
+                    R2_length = len(r2_read_lines[i]) # define read length based on real data
+                
                 # randomly select where the R2 read is gonna start from a normal distibuiton
-
-                start = len(random_sequence) - int(np.random.randint(R2_length, len(random_sequence) - R2_length)) 
+                
+                start = int(np.random.randint(0, len(random_sequence) - R2_length - 1))
+                
                 # total length - random value
                 start_vec.append(start/(len(random_sequence) - R2_length))
 
                 random_sequence_read = random_sequence[start:start + R2_length]
-      
+
+                
                 if not (trunc_range[0] == 0 and trunc_range[1] == 0): # truncating the read sequence
                     truncate_left = round(random.uniform(trunc_range[0],trunc_range[1])*len(random_sequence_read)) # from the left side
                     truncate_right = round(random.uniform(trunc_range[0],trunc_range[1])*len(random_sequence_read)) # from the right side
