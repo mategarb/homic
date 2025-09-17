@@ -175,11 +175,16 @@ def read_n_clean_blastn(path_blast, top_hits = True, evalue = 0.05, drop_sp = Tr
         rem_und = ["sp." not in spec for spec in data["species"]]
         data = data[rem_und]
 
+    #if top_hits:
+    #    data = (data.groupby("contig_id", group_keys=False)
+    #      .apply(lambda g: g[g["evalue"] == g["evalue"].min()])
+    #      .groupby("contig_id", group_keys=False)
+    #      .apply(lambda g: g[g["bitscore"] == g["bitscore"].max()])
+    #      .reset_index(drop=True))
     if top_hits:
-        data = (data.groupby("contig_id", group_keys=False)
-          .apply(lambda g: g[g["evalue"] == g["evalue"].min()])
-          .groupby("contig_id", group_keys=False)
-          .apply(lambda g: g[g["bitscore"] == g["bitscore"].max()])
+        data = (
+            data.sort_values(by=["contig_id", "evalue", "bitscore"], ascending=[True, True, False])
+          .drop_duplicates(subset="contig_id", keep="first")
           .reset_index(drop=True))
         
     # fianlly, sorting by two columns: evalue & bitscore

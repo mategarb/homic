@@ -1,5 +1,6 @@
 import time
 import statistics
+from scipy import stats
 import numpy as np
 import matplotlib
 import matplotlib.pyplot as plt
@@ -360,6 +361,65 @@ def relative_abundance_multi(listed_data, data_names, n=10, level="genus"):
     
     plt.show()
 
+def three_corplots(listed_data, data_names, level="genus"):
+
+    # compute counts for each df in a loop
+    if isinstance(listed_data, list):
+        counts = [Counter(df[level]) for df in listed_data]
+            
+        # create DataFrame from all counts
+        df = pd.DataFrame(counts).fillna(0).astype(int)
+        
+        df = df.T
+        df.columns = data_names
+    else:
+        df = listed_data
+
+    fig, axes = plt.subplots(1, 3, figsize=(15, 5))
+
+    # 1
+    g = sns.regplot(x=data_names[0], y=data_names[1], data=df, ax=axes[0], scatter_kws={'s':20, 'color': 'black'}, line_kws={'color': 'black'})
+    res = stats.pearsonr(df[data_names[0]], df[data_names[1]])
+    
+    axes[0].text(
+        0.05, 0.95,
+        f"r = {res[0]:.2f}\n"
+        f"p = {res[1]:.3e}",
+        transform=axes[0].transAxes,
+        ha="left", va="top",
+        fontsize=12, weight="bold"
+        )
+    
+    # 2
+    g = sns.regplot(x=data_names[0], y=data_names[2], data=df, ax=axes[1], scatter_kws={'s':20, 'color': 'black'}, line_kws={'color': 'black'})
+    res = stats.pearsonr(df[data_names[0]], df[data_names[2]])
+    
+    axes[1].text(
+        0.05, 0.95,
+        f"r = {res[0]:.2f}\n"
+        f"p = {res[1]:.3e}",
+        transform=axes[1].transAxes,
+        ha="left", va="top",
+        fontsize=12, weight="bold"
+        )
+
+    # 3
+    g = sns.regplot(x=data_names[1], y=data_names[2], data=df, ax=axes[2], scatter_kws={'s':20, 'color': 'black'}, line_kws={'color': 'black'})
+    res = stats.pearsonr(df[data_names[1]], df[data_names[2]])
+    
+    axes[2].text(
+        0.05, 0.95,
+        f"r = {res[0]:.2f}\n"
+        f"p = {res[1]:.3e}",
+        transform=axes[2].transAxes,
+        ha="left", va="top",
+        fontsize=12, weight="bold"
+        )
+
+    plt.tight_layout()
+    plt.show()
+
+    
 #print("Done!")
 #print("Average length: ")
 #print(stats.mean(lns))
