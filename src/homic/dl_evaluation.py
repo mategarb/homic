@@ -841,6 +841,38 @@ def reassign_classes_per_spot(info, model, encoder):
 
 
 def merge_prediction_results(info, cluster_l, fastq_spot_d, taxa_orders, reassign_d):
+    
+    """Merges prediction results for spots.
+
+        No default parameters. All must be specified.
+
+        Parameters
+        ----------
+        info : str,
+            The sound the animal makes
+        cluster_l : list,
+            Frequencies of bacteria per spot. 
+        fastq_spot_d : dict,
+            Indicating which coordinates (spots) belong to what read. Keys are spot IDs, values are reads IDs.
+        taxa_orders : list,
+            List including taxa levels ordered, for instance: ["species", "genus", "family", "order", "class", "phylum", "superkingdom"]
+        reassign_d : dict,
+            Dict of 3 column data frames. Columns correspond to read ID (1st), Kraken2 and DL prediction (2nd and 3rd). Keys are spots.
+            
+        Returns
+        -------
+        pearson_d
+            a dict of pearson correlation values for taxa levels (keys), two elements corresponds to DL and Kraken2, respectively.
+        braycurtis_d
+            a dict of Bray Curtis distances for taxa levels (keys), two elements corresponds to DL and Kraken2, respectively.
+        accuracy_d
+            a dict of accuracies for taxa levels (keys), two elements corresponds to DL and Kraken2, respectively.
+        precision_d
+            a dict of precisions for taxa levels (keys), two elements corresponds to DL and Kraken2, respectively.
+        recall_d
+            a dict of recals for taxa levels (keys), two elements corresponds to DL and Kraken2, respectively.
+        """
+    
     # Current assignments
     info2 = info[['fastq','truth_taxa_order']]
     info2.dropna(subset=['truth_taxa_order'], inplace=True)

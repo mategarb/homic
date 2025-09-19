@@ -32,14 +32,15 @@ import re
 #### barcodes
 path_bcodes = '/gpfs/commons/home/mgarbulowski/proj_shm/inputs/10015_barcodes.txt'
 bcodes = file_readers.load_barcodes(path_bcodes)
+print(bcodes)
 
 #### output from Kraken2
-path_krk = '/gpfs/commons/home/mgarbulowski/proj_shm/outputs/kraken2_5000ps_val_simulated_output.txt'
+path_krk = '/gpfs/commons/home/mgarbulowski/proj_shm/outputs/validation_data_medium_5000ps_ln/kraken2_5000ps_val_simulated_output.txt'
 #path_krk = '/gpfs/commons/home/mgarbulowski/proj_shm/outputs/validation_small/kraken2_val_simulated_output.txt'
 krk_out = file_readers.load_kraken2_output(path_krk)
 
 #### fastq with simulated reads
-path = '/gpfs/commons/home/mgarbulowski/proj_shm/outputs/SRR25456942_5000ps_val_simulated.fastq'
+path = '/gpfs/commons/home/mgarbulowski/proj_shm/outputs/validation_data_medium_5000ps_ln/SRR25456942_5000ps_val_simulated.fastq'
 # path = '/gpfs/commons/home/mgarbulowski/proj_shm/outputs/SRR25456942_D2_20000ps_val_simulated.fastq'
 #path = '/gpfs/commons/home/mgarbulowski/proj_shm/outputs/validation_small/SRR25456942_val_simulated.fastq' # small data, 
 # path = '/gpfs/commons/home/mgarbulowski/proj_shm/old_files/simulated_R2_150.fastq'
@@ -51,7 +52,7 @@ print(len(heads))
 
 #### dl model
 input_path = '/gpfs/commons/home/mgarbulowski/proj_shm/outputs'
-input_model = 'model_1000000_totreads_11epochs_50batches_LSTM.keras'
+input_model = '/gpfs/commons/home/mgarbulowski/proj_shm/outputs/models_old/spemic62m/model_LSTM.keras'
 #input_model = 'model_500000_totreads_11epochs_50batches_.keras'
 model = keras.models.load_model(os.path.join(input_path, input_model))
 
@@ -59,13 +60,13 @@ model = keras.models.load_model(os.path.join(input_path, input_model))
 # model.summary()
 
 #### encoder
-input_encoder = 'tra_encoder_1000000_totreads_11epochs_50batches_LSTM.h5'
+input_encoder = '/gpfs/commons/home/mgarbulowski/proj_shm/outputs/models_old/spemic62m/train_encoder_LSTM.h5'
 #input_encoder = 'val_encoder_500000_totreads_11epochs_50batches_.h5'
 encoder = pickle.load(open(os.path.join(input_path, input_encoder), 'rb'))
 
 #### taxa info, fastq headers with species labels
 # this is some unspecified pickle file that contains all the data
-path_head = '/gpfs/commons/home/mgarbulowski/proj_shm/outputs/SRR25456942_5000ps_val_genus_species.txt'
+path_head = '/gpfs/commons/home/mgarbulowski/proj_shm/outputs/validation_data_medium_5000ps_ln/SRR25456942_5000ps_val_genus_species.txt'
 #path_head = '/gpfs/commons/home/mgarbulowski/proj_shm/outputs/SRR25456942_D2_20000ps_val_genus_species.txt'
 #path_head = '/gpfs/commons/home/mgarbulowski/proj_shm/outputs/validation_small/SRR25456942_val_genus_species.txt' # small data
 #path_head = '/gpfs/commons/home/mgarbulowski/proj_shm/old_files/header_taxa.txt' # old data
@@ -73,9 +74,8 @@ path_head = '/gpfs/commons/home/mgarbulowski/proj_shm/outputs/SRR25456942_5000ps
 krk_preds = krk_out['taxid']
 
 fastq_spot_d, info = file_readers.make_benchmark_table(path_head, reads, krk_preds, bcodes)
-
-
-
+print(type(fastq_spot_d))
+print(fastq_spot_d)
 ## columns in info
 #'fastq' - fastq full header
 #'tile' - tile id (from header)
@@ -104,12 +104,19 @@ fastq_spot_d, info = file_readers.make_benchmark_table(path_head, reads, krk_pre
 
 ########### Kraken2 + DL reassignment #############
 
-taxa_orders = ["species", "genus", "family", "order", "class", "phylum", "superkingdom"]
-cluster_l, reassign_d = dl_evaluation.reassign_classes_per_spot(info, model, encoder)
 
+cluster_l, reassign_d = dl_evaluation.reassign_classes_per_spot(info, model, encoder)
+print(cluster_l)
+print(type(cluster_l))
+
+print(reassign_d)
+print(type(reassign_d))
+
+taxa_orders = ["species", "genus", "family", "order", "class", "phylum", "superkingdom"]
 
 pearson_d, braycurtis_d, accuracy_d, precision_d, recall_d = dl_evaluation.merge_prediction_results(info, cluster_l, fastq_spot_d, taxa_orders, reassign_d)
-
+print(type(pearson_d))
+print(accuracy_d['27x8'])
 
 # Calculate average pearson per taxa level
 #path_figs = '/gpfs/commons/home/mgarbulowski/proj_shm/figs/'
