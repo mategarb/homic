@@ -172,6 +172,51 @@ def load_pickle(path):
 
 # Load pickle file
 def make_benchmark_table(path, reads, krk_preds, bcodes):
+
+    """Creates a table for benchmarking spots.
+
+        No default parameters. All must be specified.
+
+        Parameters
+        ----------
+        path : string,
+            path to the gold trurth species / genus list.
+        reads : list,
+            "reads" list read with the file_readers.fastq function
+        krk_preds : pandas Series,
+            taken as a column "taxa" from output of file_readers.load_kraken2_output(path)
+        bcodes : pandas DataFrame,
+            the output from file_readers.load_barcodes(path)
+            
+
+        Returns
+        -------
+        fastq_spot_d
+            a dict indicating which coordinates (spots) belong to what read. Keys are spot IDs, values are reads IDs.
+        info
+            pandas DataFrame with following columns:
+            'fastq' - fastq full header
+            'tile' - tile id (from header)
+            'x' - position x  (from header)
+            'y' - position y (from header)
+            'taxa1' - species part I, truth
+            'taxa2' - species part II, truth
+            'read' - read sequence 
+            'taxa_predictions' - taxid of predictions from Kraken2
+            'taxa' - truth species, truth
+            'taxa_order' - truth taxa information, ordered 
+            'superkingdom' - taxid predictions from Kraken2 translated to taxa info via ete3
+            'phylum' - taxid predictions from Kraken2 translated to taxa info via ete3
+            'class' - taxid predictions from Kraken2 translated to taxa info via ete3
+            'order' - taxid predictions from Kraken2 translated to taxa info via ete3
+            'family' - taxid predictions from Kraken2 translated to taxa info via ete3
+            'genus' - taxid predictions from Kraken2 translated to taxa info via ete3
+            'species' - taxid predictions from Kraken2 translated to taxa info via ete3
+            'barcode' - barcode sequence
+            'Bx' - barcode position X, spot definition (for synthetic data, assigned randomly)
+            'By' - barcode position Y, spot definition (for synthetic data, assigned randomly)
+        """
+    
     rows_nams = pd.read_csv(path, sep=' ', header = None,usecols=[1], engine='python', names = ['fastq']) # full header only
     info = pd.read_csv(path, sep='[ ,:,|]', header = None, usecols=[5, 6, 7, 9, 10], names = ['tile', 'x', 'y','taxa1', 'taxa2'], engine='python') # new files, sra-based
     # info = pd.read_csv(path, sep='[ ,:,|]', header = None, usecols=[4, 5, 6, 11, 12], names = ['tile', 'x', 'y','taxa1', 'taxa2'], engine='python') # old files
@@ -271,18 +316,19 @@ def make_benchmark_table(path, reads, krk_preds, bcodes):
     info = pd.concat([info, bcodes_rand], axis=1)
     
     # For truth - get fastq headers per spot
-    tmp_d = {}
+    fastq_spot_d = {}
     info_grouped = info.groupby(['Bx', 'By'])
     
     for label, group in info_grouped:
         spot = str(label[0]) + 'x' + str(label[1])
-        tmp_d[spot] = group['fastq'].tolist()
+        fastq_spot_d[spot] = group['fastq'].tolist()
 
     # randomly add barcodes in order to mimic spots, normally it would be done with taggd
 
     info['Bx'] = info['Bx'].map(str)
     info['By'] = info['By'].map(str)
-    return tmp_d, info
+
+    return fastq_spot_d, info
 
 def load_barcodes(path):
     bcodes = pd.read_csv(path, delimiter="\t", header = None)

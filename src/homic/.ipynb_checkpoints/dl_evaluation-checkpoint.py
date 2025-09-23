@@ -771,6 +771,46 @@ def extract_taxa_info2(info_xy, column_header, slide_type):
         return y_taxaorder, y_fastqH
 
 def reassign_classes_per_spot(info, model, encoder):
+    
+    """Prints statistics for spots.
+
+        No default parameters. All must be specified.
+
+        Parameters
+        ----------
+        info : pandas DataFrame with following columns,
+            'fastq' - fastq full header
+            'tile' - tile id (from header)
+            'x' - position x  (from header)
+            'y' - position y (from header)
+            'taxa1' - species part I, truth
+            'taxa2' - species part II, truth
+            'read' - read sequence 
+            'taxa_predictions' - taxid of predictions from Kraken2
+            'taxa' - truth species, truth
+            'taxa_order' - truth taxa information, ordered 
+            'superkingdom' - taxid predictions from Kraken2 translated to taxa info via ete3
+            'phylum' - taxid predictions from Kraken2 translated to taxa info via ete3
+            'class' - taxid predictions from Kraken2 translated to taxa info via ete3
+            'order' - taxid predictions from Kraken2 translated to taxa info via ete3
+            'family' - taxid predictions from Kraken2 translated to taxa info via ete3
+            'genus' - taxid predictions from Kraken2 translated to taxa info via ete3
+            'species' - taxid predictions from Kraken2 translated to taxa info via ete3
+            'barcode' - barcode sequence
+            'Bx' - barcode position X, spot definition (for synthetic data, assigned randomly)
+            'By' - barcode position Y, spot definition (for synthetic data, assigned randomly)
+        model : keras-based model,
+            Deep learning model at species / genus level.
+        encoder : sklearn-based encoder,
+            Enocder including species / genus names.
+
+        Returns
+        -------
+        cluster_l
+            a list of bacteria frequencies bacteria per spot. 
+        reassign_d
+            a dict of 3 column data frames. Columns correspond to read ID (1st), Kraken2 and DL prediction (2nd and 3rd). Keys are spots.
+        """
         
     # Go through all the spots
     clusterl_d = {}
@@ -848,8 +888,27 @@ def merge_prediction_results(info, cluster_l, fastq_spot_d, taxa_orders, reassig
 
         Parameters
         ----------
-        info : str,
-            The sound the animal makes
+        info : pandas DataFrame with following columns,
+            'fastq' - fastq full header
+            'tile' - tile id (from header)
+            'x' - position x  (from header)
+            'y' - position y (from header)
+            'taxa1' - species part I, truth
+            'taxa2' - species part II, truth
+            'read' - read sequence 
+            'taxa_predictions' - taxid of predictions from Kraken2
+            'taxa' - truth species, truth
+            'taxa_order' - truth taxa information, ordered 
+            'superkingdom' - taxid predictions from Kraken2 translated to taxa info via ete3
+            'phylum' - taxid predictions from Kraken2 translated to taxa info via ete3
+            'class' - taxid predictions from Kraken2 translated to taxa info via ete3
+            'order' - taxid predictions from Kraken2 translated to taxa info via ete3
+            'family' - taxid predictions from Kraken2 translated to taxa info via ete3
+            'genus' - taxid predictions from Kraken2 translated to taxa info via ete3
+            'species' - taxid predictions from Kraken2 translated to taxa info via ete3
+            'barcode' - barcode sequence
+            'Bx' - barcode position X, spot definition (for synthetic data, assigned randomly)
+            'By' - barcode position Y, spot definition (for synthetic data, assigned randomly)
         cluster_l : list,
             Frequencies of bacteria per spot. 
         fastq_spot_d : dict,
@@ -1010,6 +1069,46 @@ def merge_prediction_results(info, cluster_l, fastq_spot_d, taxa_orders, reassig
 
 
 def per_spot_stats(info, reassign_d, fastq_spot_d, taxa_orders):
+
+    """Prints statistics for spots.
+
+        No default parameters. All must be specified.
+
+        Parameters
+        ----------
+        info : pandas DataFrame with following columns,
+            'fastq' - fastq full header
+            'tile' - tile id (from header)
+            'x' - position x  (from header)
+            'y' - position y (from header)
+            'taxa1' - species part I, truth
+            'taxa2' - species part II, truth
+            'read' - read sequence 
+            'taxa_predictions' - taxid of predictions from Kraken2
+            'taxa' - truth species, truth
+            'taxa_order' - truth taxa information, ordered 
+            'superkingdom' - taxid predictions from Kraken2 translated to taxa info via ete3
+            'phylum' - taxid predictions from Kraken2 translated to taxa info via ete3
+            'class' - taxid predictions from Kraken2 translated to taxa info via ete3
+            'order' - taxid predictions from Kraken2 translated to taxa info via ete3
+            'family' - taxid predictions from Kraken2 translated to taxa info via ete3
+            'genus' - taxid predictions from Kraken2 translated to taxa info via ete3
+            'species' - taxid predictions from Kraken2 translated to taxa info via ete3
+            'barcode' - barcode sequence
+            'Bx' - barcode position X, spot definition (for synthetic data, assigned randomly)
+            'By' - barcode position Y, spot definition (for synthetic data, assigned randomly)
+        reassign_d : dict,
+            Dict of 3 column data frames. Columns correspond to read ID (1st), Kraken2 and DL prediction (2nd and 3rd). Keys are spots.
+        fastq_spot_d : dict,
+            Indicating which coordinates (spots) belong to what read. Keys are spot IDs, values are reads IDs.
+        taxa_orders : list,
+            List including taxa levels ordered, for instance: ["species", "genus", "family", "order", "class", "phylum", "superkingdom"]
+
+        Returns
+        -------
+        stats_d
+            a dict of data frames (for each spot) with following columns taxa order, type (kraken or DL), accuracy, F1-score, False Pos, NAs, Misclassified.
+        """
     
     info2 = info[['fastq','truth_taxa_order']]
     info2.dropna(subset=['truth_taxa_order'], inplace=True)
