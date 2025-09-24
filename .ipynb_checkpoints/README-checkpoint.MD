@@ -17,7 +17,7 @@ from homic import file_readers, simulate_16S, dl_model
 * src
     - main scripts of the package
 * tests
-    - examples
+    - examples / tutorials
 * models
     - precomputed DL models and encoders for the species specified in the list files/65sp.txt
 * files
@@ -30,11 +30,6 @@ from homic import file_readers, simulate_16S, dl_model
 The example scripts for running the homic function, can be found in the "tests" folder.
 It contains three examples:
 
-* e1_simulate_data.py
-    - example for generating synthetic training and validation data
-* e2_run_dl_training.py
-    - example for running training to generate deep learning model
-* e3_run_dl_evaluation.py
-    - benchmarkign the DL model against Kraken2
-* e4_run_dl_prediction.py
-    - predicting genus/species based on read sequence (for entire .fastq) without using spots information (global performance)
+# Help
+
+https://github.com/mategarb/homic/blob/main/tests/help.ipynb
