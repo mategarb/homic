@@ -831,7 +831,7 @@ def reassign_classes_per_spot(info, model, encoder):
     info_coordXY['tuple'] = list(zip(info_coordXY['Bx'], info_coordXY['By'])) # creates a list of tuples with coordinates of barcode x & y
     
     
-    for tup in tqdm(info_coordXY['tuple'].tolist()):
+    for tup in info_coordXY['tuple'].tolist(): # tqdm()
         newcluster_d = {}
         spot_coord = str(tup[0]) + 'x' + str(tup[1])  #tup[0].split(':')[-1] + 'x' + tup[1].split(':')[-1]        
     

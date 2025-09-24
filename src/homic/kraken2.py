@@ -193,6 +193,26 @@ def hash_file(filename, buf_size=8192):
 
 ### classification function modified to run in homic ###
 def classify(db_path, input_file, confidence=0.01, threads=8, min_hit_gr=2):
+    """Classifies reads to genus / species according to db.
+
+        Parameters
+        ----------
+        db_path : string,
+            a path to kraken db
+        input_file : string,
+            a path to input .fastq file
+        confidence : float,
+            kraken2 parameter - confidence (-T)
+        threads : intiger,
+            kraken2 parameter - number of threads (-p)
+        min_hit_gr : intiger,
+            kraken2 parameter - minimum hitting group (-g)
+
+        Returns
+        -------
+        output
+            a data frame with following columns 'outcome', 'seqid', 'taxid', 'seqlen' and 'kmers'
+    """
 
     db_path = os.path.realpath(db_path)
     current_dir = path.join(path.dirname(__file__))
@@ -236,6 +256,20 @@ def classify(db_path, input_file, confidence=0.01, threads=8, min_hit_gr=2):
     return output
     
 def prepare_db(db_path, ref_path):
+    """Builds db for kraken2.
+
+        Parameters
+        ----------
+        db_path : string,
+            a path to the folder where kraken db will be created
+        ref_path : string,
+            a path to the input .fasta file with reference sequences
+            
+        Returns
+        -------
+        no output
+            files are saved to the folder under "db_path"
+    """
     
     current_dir = path.join(path.dirname(__file__))
     classify_bin = os.path.join(current_dir + "/kraken2_install", "kraken2-build")
@@ -263,7 +297,29 @@ def prepare_db(db_path, ref_path):
     subprocess.call(cmd3)
 
 def decontaminate_paired(db_path, input_file1, input_file2, output, confidence=0.5, threads=12, min_base_qual=22):
+    """Decontamination with kraken2 for paired .fastq files.
 
+        Parameters
+        ----------
+        db_path : string,
+            a path to kraken db
+        input_file1 : string,
+            a path to the first .fastq file
+        input_file2 : string,
+            a path to the second .fastq file
+        output : string,
+            a path to the output .fastq file where host reads are removed
+        confidence : float,
+            kraken2 parameter - confidence (--confidence)
+        threads : intiger,
+            kraken2 parameter - number of threads (--threads)
+        min_base_qual : intiger,
+            kraken2 parameter - minimum base quality (--minimum-base-quality)
+            
+        Returns
+        -------
+        no output, files are saved under "output"
+    """
     db_path = os.path.realpath(db_path)
     current_dir = path.join(path.dirname(__file__))
     classify_bin = os.path.join(current_dir + "/kraken2_install", "kraken2")
@@ -297,6 +353,27 @@ def decontaminate_paired(db_path, input_file1, input_file2, output, confidence=0
     subprocess.call(cmd, stdout=subprocess.DEVNULL)
 
 def decontaminate_single(db_path, input_file, output, confidence=0.5, threads=8, min_base_qual=22):
+    """Decontamination with kraken2 for single .fastq (unpaired).
+
+        Parameters
+        ----------
+        db_path : string,
+            a path to kraken db
+        input_file : string,
+            a path to the .fastq file
+        output : string,
+            a path to the output .fastq file where host reads are removed
+        confidence : float,
+            kraken2 parameter - confidence (--confidence)
+        threads : intiger,
+            kraken2 parameter - number of threads (--threads)
+        min_base_qual : intiger,
+            kraken2 parameter - minimum base quality (--minimum-base-quality)
+            
+        Returns
+        -------
+        no output, files are saved under "output"
+    """
 
     db_path = os.path.realpath(db_path)
     current_dir = path.join(path.dirname(__file__))
@@ -329,6 +406,20 @@ def decontaminate_single(db_path, input_file, output, confidence=0.5, threads=8,
     subprocess.call(cmd, stdout=subprocess.DEVNULL)
 
 def evaluate_kraken(krk_path, gs_path):
+
+    """Evaluates kraken2 prediction with gold standard.
+
+        Parameters
+        ----------
+        krk_path : string,
+            a path to kraken2 result (.csv)
+        gs_path : string,
+            a path to the gold stanard file (.txt)
+
+        Returns
+        -------
+            a value of accuracy
+    """
     
     k2outc = pd.read_csv(krk_path)
     rows_nams = pd.read_csv(gs_path, sep=' ', header = None,usecols=[1], engine='python', names = ['fastq']) # full header only

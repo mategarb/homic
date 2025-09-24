@@ -25,6 +25,7 @@ import os
 import pandas as pd
 import sys
 import random
+from random import choices
 import numpy as np
 import gzip
 import shutil
@@ -474,6 +475,22 @@ def impute_seq_error(row, num_errors):
             letts = iter(random.sample(letters_to_draw, 1))
             lst[ind] = next(letts)
         return "".join(lst)
+
+def simulate_barcodes(b_dim1, b_dim2, b_len=18):
+    """
+    Simulating data frame with barcodes.
+    """
+    letters_to_draw = ["A", "C", "T", "G"]
+    
+    df = []
+    for x in range(1,b_dim1+1):
+      for y in range(1,b_dim2+1):
+        bcd = choices(letters_to_draw, k=b_len)
+        df.append({'barcode': "".join(bcd), 'Bx': x, 'By': y})
+    
+    df = pd.DataFrame(df)
+            
+    return df
 
 #another attempt to make data estimation for unique regions
 ## sliding window
