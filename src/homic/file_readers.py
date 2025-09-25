@@ -15,6 +15,21 @@ from Bio.Seq import Seq
 
 def fasta(path):
 
+    """Reads fasta file and prints the number of organisms in the file.
+
+        No default parameters. All must be specified.
+
+        Parameters
+        ----------
+        path : string,
+            path to the .fasta file.
+
+        Returns
+        -------
+        fasta_dict
+            a dictionary with organisms included in the .fasta file
+        """
+
     fasta_file = path # path to fasta with multiple references
     fasta_dict = {}
 
@@ -41,7 +56,8 @@ def fasta(path):
             new_seq.append(line.rstrip()) # whitspace removal and append of all lines with sequences
             
     fasta_dict[species] = [whole_header, ''.join(new_seq)] # last one
-    print("Number of organisms in reference: "+str(len(fasta_dict)))
+    print("Number of organisms in reference: " + str(len(fasta_dict)))
+    
     return fasta_dict # fasta_dict is a dictionary of 2 element lists (header + sequence)
 
 
@@ -180,7 +196,7 @@ def make_benchmark_table(path, reads, krk_preds, bcodes):
         Parameters
         ----------
         path : string,
-            path to the gold trurth species / genus list.
+            path to the gold truth species / genus list.
         reads : list,
             "reads" list read with the file_readers.fastq function
         krk_preds : pandas Series,

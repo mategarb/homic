@@ -28,7 +28,6 @@ from homic import file_readers, simulate_16S, dl_model
 # Examples
 
 The example scripts for running the homic function, can be found in the "tests" folder.
-It contains three examples:
 
 # Help
 

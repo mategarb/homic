@@ -15,6 +15,43 @@ from Bio.Seq import Seq
 
 def fasta(path):
 
+    """Reads fasta file.
+
+        No default parameters. All must be specified.
+
+        Parameters
+        ----------
+        path : string,
+            path to the .fasta file.
+
+        Returns
+        -------
+        fastq_spot_d
+            a dict indicating which coordinates (spots) belong to what read. Keys are spot IDs, values are reads IDs.
+        info
+            pandas DataFrame with following columns:
+            'fastq' - fastq full header
+            'tile' - tile id (from header)
+            'x' - position x  (from header)
+            'y' - position y (from header)
+            'taxa1' - species part I, truth
+            'taxa2' - species part II, truth
+            'read' - read sequence 
+            'taxa_predictions' - taxid of predictions from Kraken2
+            'taxa' - truth species, truth
+            'taxa_order' - truth taxa information, ordered 
+            'superkingdom' - taxid predictions from Kraken2 translated to taxa info via ete3
+            'phylum' - taxid predictions from Kraken2 translated to taxa info via ete3
+            'class' - taxid predictions from Kraken2 translated to taxa info via ete3
+            'order' - taxid predictions from Kraken2 translated to taxa info via ete3
+            'family' - taxid predictions from Kraken2 translated to taxa info via ete3
+            'genus' - taxid predictions from Kraken2 translated to taxa info via ete3
+            'species' - taxid predictions from Kraken2 translated to taxa info via ete3
+            'barcode' - barcode sequence
+            'Bx' - barcode position X, spot definition (for synthetic data, assigned randomly)
+            'By' - barcode position Y, spot definition (for synthetic data, assigned randomly)
+        """
+
     fasta_file = path # path to fasta with multiple references
     fasta_dict = {}
 
@@ -41,7 +78,8 @@ def fasta(path):
             new_seq.append(line.rstrip()) # whitspace removal and append of all lines with sequences
             
     fasta_dict[species] = [whole_header, ''.join(new_seq)] # last one
-    print("Number of organisms in reference: "+str(len(fasta_dict)))
+    print("Number of organisms in reference: " + str(len(fasta_dict)))
+    
     return fasta_dict # fasta_dict is a dictionary of 2 element lists (header + sequence)
 
 
@@ -180,7 +218,7 @@ def make_benchmark_table(path, reads, krk_preds, bcodes):
         Parameters
         ----------
         path : string,
-            path to the gold trurth species / genus list.
+            path to the gold truth species / genus list.
         reads : list,
             "reads" list read with the file_readers.fastq function
         krk_preds : pandas Series,
