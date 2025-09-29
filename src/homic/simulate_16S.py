@@ -1,7 +1,8 @@
 #!/usr/bin/env python
+__all__ = ["training_data", "training_data_fast", "validation_data", "simulate_barcodes"]
 
 """
-Script to simulate R2 (reads) by taking FASTQ headers, strand and quality score from a real R2 but replacing the sequence with a part of a 16S gene (?).
+Module to simulate R2 (reads) by taking FASTQ headers, strand and quality score from a real R2 but replacing the sequence with a part of a 16S gene (?).
 This simulated R2 (16S reads) is then used as a (simulated) FASTQ file. 
 Beyond simulated R2 FASTQ file, it outputs a .txt file with the names (genus + species) collected from 16S gene. This txt is created to have the truth of what species are in the simulated FASTQ file.
 
@@ -12,14 +13,9 @@ From which species the 16S gene is taken from is chosen randomly based on a list
 3. Run this script to get a simluated R2 with 'fake' read 2 based on where the 16S surface probe aligned in the gene.  
 	The newly created 'fake' R2 will contain the same number of FASTQ header and quality score as the original R2 which it is made from. 
 
-Run script as:
-	python prepare_sim_16S_read2.py outputs/16S_rr.fa outputs/alignment.txt inputs/SRR25456944_C2_2.fastq outputs/SRR25456944_C2
-    python prepare_sim_16S_read2.py outputs/16S_rr.fa outputs/alignment.txt inputs/SRR25456942_D2_2.fastq outputs/SRR25456942_D2
-    
-    python simulate_16S_training.py /gpfs/commons/home/mgarbulowski/proj_shm/outputs/16S_rr.fa /gpfs/commons/home/mgarbulowski/proj_shm/inputs/SRR25456944_C2_2.fastq /gpfs/commons/home/mgarbulowski/proj_shm/outputs/SRR25456944_C2
 Arguments:
 1. FASTA with all 16S references
-2. alignment result from blastn
+2. marker alignment result from blastn
 """
 import os
 import pandas as pd
@@ -108,7 +104,46 @@ def prune_references(probe_seq, mic_ref_seqs, thr=0.25):
             mic_ref_seqs[key] = value[1] # in such case a full reference is taken
     return mic_ref_seqs, scores_vec
 
-def training_data(n_reads, output_path, score_thr, mic_refs, r2_header_lines, r2_read_lines, r2_qual_lines, impute_errors, trunc_range, print_stats):
+def training_data(n_reads, output_path, score_thr, mic_refs, r2_header_lines,
+                  r2_read_lines, r2_qual_lines, impute_errors = True, trunc_range=[0,0], print_stats = True):
+
+    """Creates data for training DL model with feature selection based on alignment scores.
+
+        Parameters
+        ----------
+        n_reads : intiger,
+           number of reads to generate. In case this number exceeds the number of reads in real data, randomly (with replecement) generated reads are created.
+        output_path : string,
+           path to the foler where simulated data are created
+        score_thr : float,
+           threshold for feature selection (alignment score threshold)
+        mic_refs : dict,
+           a dict of micriobiome references
+        r2_header_lines : list,
+           a list of headers from the real data
+        r2_read_lines : list,
+           a list of reads (sequences) from the real data
+        r2_qual_lines : list,
+           a list of quality lines from the real data
+        impute_errors : boolean,
+           if True, imputes a random error in read sequences
+        trunc_range : list,
+           a list of two values, percenatage of truncation from left and right end of the read
+        print_stats : boolean,
+           if True, prints a basic statistic for simulated data
+           
+           
+        Returns
+        -------
+        all_scores
+            a list of alignment scores
+        start_vec
+            a list of starting points where reads where drawn based on the references
+        qual_vec
+            a list of qualities
+        species_list
+            a list of species (gold truth)
+        """
     
     random_species_list = [] # To store what genus+species got picked
     random_only_species_list = [] # To store what genus+species got picked
@@ -230,7 +265,43 @@ def training_data(n_reads, output_path, score_thr, mic_refs, r2_header_lines, r2
     return all_scores, start_vec, qual_vec, species_list
 
 # faster version, without alignment
-def training_data_fast(n_reads, output_path, mic_refs, r2_header_lines, r2_read_lines, r2_qual_lines, impute_errors, trunc_range, print_stats):
+def training_data_fast(n_reads, output_path, mic_refs, r2_header_lines, r2_read_lines, r2_qual_lines, impute_errors=True, trunc_range=[0,0], print_stats=True):
+
+    """Creates data for training DL model without feature selection (fast approach).
+
+        Parameters
+        ----------
+        n_reads : intiger,
+           number of reads to generate. In case this number exceeds the number of reads in real data, randomly (with replecement) generated reads are created.
+        output_path : string,
+           path to the foler where simulated data are created
+        mic_refs : dict,
+           a dict of micriobiome references
+        r2_header_lines : list,
+           a list of headers from the real data
+        r2_read_lines : list,
+           a list of reads (sequences) from the real data
+        r2_qual_lines : list,
+           a list of quality lines from the real data
+        impute_errors : boolean,
+           if True, imputes a random error in read sequences
+        trunc_range : list,
+           a list of two values, percenatage of truncation from left and right end of the read
+        print_stats : boolean,
+           if True, prints a basic statistic for simulated data
+           
+           
+        Returns
+        -------
+        start_vec
+            a list of starting points where reads where drawn based on the references
+        qual_vec
+            a list of qualities
+        head_vec
+            a list of headers
+        species_list
+            a list of species (gold truth)
+        """
     
     random_species_list = [] # To store what genus+species got picked
     random_only_species_list = [] # To store what genus+species got picked
@@ -344,6 +415,49 @@ def training_data_fast(n_reads, output_path, mic_refs, r2_header_lines, r2_read_
 ## R2 on this sequence also starts randomly on the sequence (this is dependent on the fragment length)
 
 def validation_data(n_reads, output_path, mic_refs, r2_header_lines, r2_read_lines, r2_qual_lines, species_tra = None, error_rate = 0.001, error_weights = (1, 2, 0), trunc_range = [0,0], print_stats = True, shuffle = True):
+
+    """Creates data for validation with equal distribution of species and tuned error.
+
+        Parameters
+        ----------
+        n_reads : intiger,
+           number of reads to generate per taxa reference. In case this number exceeds the number of reads in real data, randomly (with replecement) generated reads are created.
+        output_path : string,
+           path to the foler where simulated data are created
+        mic_refs : dict,
+           a dict of micriobiome references
+        r2_header_lines : list,
+           a list of headers from the real data
+        r2_read_lines : list,
+           a list of reads (sequences) from the real data
+        r2_qual_lines : list,
+           a list of quality lines from the real data
+        species_tra : "None" or list,
+           given the list of taxa names, removes taxa that not match    
+        error_rate : float,
+           error rate for swtiching a nucleotide
+        error_weights : vector,
+           three element vector indicates a chance of getting single, double or triple error
+        trunc_range : list,
+           a list of two values, percenatage of truncation from left and right end of the read
+        print_stats : boolean,
+           if True, prints a basic statistic for simulated data
+        shuffle : boolean,
+           if True, shuffles final data as originally data are generated ordered by taxa names
+           
+           
+        Returns
+        -------
+        seq_lns
+            a list of sequences lengths
+        start_vec
+            a list of starting points where reads where drawn based on the references
+        species_list
+            a list of species (gold truth)
+        frequency
+            a dict of taxa frequencies
+        """
+
     
     random_species_list = [] # To store what genus+species got picked (header)
     random_only_species_list = [] # To store what genus+species got picked
@@ -477,14 +591,29 @@ def impute_seq_error(row, num_errors):
         return "".join(lst)
 
 def simulate_barcodes(b_dim1, b_dim2, b_len=18):
-    """
-    Simulating data frame with barcodes.
-    """
+
+    """Simulates barcodes and their coordinates.
+
+        Parameters
+        ----------
+        b_dim1 : integer,
+            first spatial dimension (x)
+        b_dim2 : integer,
+            second spatial dimension (y)
+        b_len : integer,
+            length of barcode [bp]
+            
+        Returns
+        -------
+        df
+            a data frame of barcodes and their x and y coordinates
+        """
+
     letters_to_draw = ["A", "C", "T", "G"]
     
     df = []
-    for x in range(1,b_dim1+1):
-      for y in range(1,b_dim2+1):
+    for x in range(1, b_dim1+1):
+      for y in range(1, b_dim2+1):
         bcd = choices(letters_to_draw, k=b_len)
         df.append({'barcode': "".join(bcd), 'Bx': x, 'By': y})
     

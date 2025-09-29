@@ -62,6 +62,22 @@ def fasta(path):
 
 
 def save_fasta_as_rev_comp(path):
+
+    """Reads fasta file and creates new fasta with reverse complementary sequences.
+
+        No default parameters. All must be specified.
+
+        Parameters
+        ----------
+        path : string,
+            path to the .fasta file.
+
+        Returns
+        -------
+        no outputs
+            new file is created with the same name + "_rc.fasta" extension
+        """
+    
     f_dict = fasta(path)
     path2 = path.replace(".fasta", "")
     path2 = path2 + "_rc.fasta"
@@ -84,6 +100,25 @@ def save_fasta_as_rev_comp(path):
 ################################# FASTQ READER, DL LEARNING SCRIPT
 
 def fastq(path):
+
+    """Reads fastq file.
+
+        No default parameters. All must be specified.
+
+        Parameters
+        ----------
+        path : string,
+            path to the .fasta file.
+
+        Returns
+        -------
+        r2_header_lines
+            a list of all fastq headers
+        r2_read_lines
+            a list of reads
+        r2_qual_lines
+            a list of all quality lines
+        """
 
     real_sample_R2_file = path
     exten = real_sample_R2_file[-3:]
@@ -116,6 +151,22 @@ def fastq(path):
 
 
 def save_fastq_as_rev_comp(path):
+
+    """Reads fastq file and creates new fastq with reverse complementary reads.
+
+        No default parameters. All must be specified.
+
+        Parameters
+        ----------
+        path : string,
+            path to the .fastq file.
+
+        Returns
+        -------
+        no outputs
+            new file is created with the same name + "_rc.fastq" extension
+        """
+    
     header_lines, read_lines, qual_lines = fastq(path)
     path2 = path.replace(".fastq", "")
     path2 = path2 + "_rc.fastq"
@@ -347,11 +398,45 @@ def make_benchmark_table(path, reads, krk_preds, bcodes):
     return fastq_spot_d, info
 
 def load_barcodes(path):
+
+
+    """Reads .txt file with barcodes.
+        Assumes three columns: barcode sequence, x and y cooridnates.
+
+        No default parameters. All must be specified.
+
+        Parameters
+        ----------
+        path : string,
+            path to the .txt file.
+
+        Returns
+        -------
+        bcodes
+            a data frame with barcodes
+        """
+
     bcodes = pd.read_csv(path, delimiter="\t", header = None)
     bcodes.columns = ['barcode', 'Bx', 'By']
     return bcodes
 
 def load_kraken2_output(path):
+
+    """Loads the output of kraken2 stored in the .csv file.
+
+        No default parameters. All must be specified.
+
+        Parameters
+        ----------
+        path : string,
+            path to the .csv file.
+
+        Returns
+        -------
+        info
+            a data frame with following columns: 'class', 'read_id', 'species', 'read_length','kmers' and 'taxid'
+        """
+    
     info = pd.read_csv(path, delimiter="\t", header = None) # , usecols=[4, 5, 6, 11, 12], names = ['tile', 'x', 'y','taxa1', 'taxa2'],
     info.columns = ['class', 'read_id', 'species', 'read_length','kmers']
 
