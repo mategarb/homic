@@ -64,6 +64,11 @@ encoder = pickle.load(open(os.path.join(input_path, input_encoder), 'rb'))
 #### taxa info, fastq headers with species labels, gold truth
 path_head = '/gpfs/commons/home/mgarbulowski/proj_shm/outputs/validation_data_medium_5000ps_ln/SRR25456942_5000ps_val_genus_species.txt'
 
+path_krk_rep = '/gpfs/commons/home/mgarbulowski/proj_shm/outputs/validation_data_medium_5000ps_ln/kraken2_5000ps_val_simulated__report.txt'
+dl_evaluation.taxa_per_spots(path_krk_rep, path_head, path, input_model, input_encoder)
+
+breakpoint()
+
 #####################################################################################################
 ################################# Perform the analysis
 

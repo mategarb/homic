@@ -25,6 +25,7 @@ from scipy import stats
 from tqdm import tqdm
 from tensorflow.keras import Model
 from sklearn import metrics
+import random
 
 warnings.filterwarnings('ignore')
 import matplotlib
@@ -418,41 +419,68 @@ def add_stat_annotation(ax,
     return ax, test_result_list
 
 
-def taxa_per_spots(report_file, ft_file, fastq_file): # kraken 2 file, fastq header - taxa text file, fastq file
-    #########################################################################
+def taxa_per_spots(report_file, ft_file, fastq_file, model, encoder): # this function is not completly tested as I don't have an input file that was used in the same format as it was created for 
+
+    """Saves taxa info for spots.
+        No default parameters. All must be specified.
+
+        Parameters
+        ----------
+        report_file : string,
+            a path to kraken 2 file with the report
+        ft_file : string,
+            a path to fastq header - taxa text file
+        fastq_file : string,
+            a path to fastq file
+        model : keras-based model,
+            Deep learning model at species / genus level.
+        encoder : sklearn-based encoder,
+            Enocder including species / genus names.
+
+        Returns
+        -------
+        no output
+            a report in .tsv file
+        """
+    
     #########################################################################
     # Load kraken2 report file
     
-    #report_file = sys.argv[1]
-    
-    report = pd.read_csv(report_file, sep='\t', header=None, names=['fragments covered by clade (%)', 'fragments covered by clade (num)', 'fragments assigned (num)', 'torder', 'ncbi taxID', 'sci-name'])
-    
+    report = pd.read_csv(report_file, sep='\t', header=None, names=['fragments covered by clade (%)', 
+                                                                    'fragments covered by clade (num)', 
+                                                                    'fragments assigned (num)', 'torder', 'ncbi taxID', 'sci-name'])
     # Create a dictionary with the taxa order with taxID as key and taxa order as value + sp_dict = only taxID as value and specie name as key (for species only) 
     tax_order_dict, sp_dict = taxa_assignment(report)
     
     #########################################################################
-    #########################################################################
-    # Load fastq files
-    
-    # read input fasta file
+    # Load fastq file
     fastq = parser(fastq_file)
-    
-    #########################################################################
     #########################################################################
     # Load fastq header - taxa text file
-    #ft_file = sys.argv[2]
     path = os.path.dirname(os.path.abspath(ft_file))
     base = os.path.basename(os.path.abspath(ft_file)).split('_headers')[0]
     
-    ft = pd.read_csv(ft_file, sep='|', header = None, usecols=[0, 3, 4, 5, 6], names = ['fastq', 'x', 'y', 'UMI', 'taxa'])
+    #ft = pd.read_csv(ft_file, sep='|', header = None, usecols=[0, 3, 4, 5, 6], names = ['fastq', 'x', 'y', 'UMI', 'taxa'])
+    #ft0 = pd.read_csv(ft_file, sep='[|]', header = None, usecols=[0], names = ['fastq'], engine='python')
     
+    ft = pd.read_csv(ft_file, sep='[ ,:,|]', header = None, usecols=[0, 6, 7, 9, 10], names = ['fastq', 'x', 'y','taxa1', 'taxa2'], engine='python')
+    ft['taxa'] = ft['taxa1'] + ' ' + ft['taxa2']
+    ft = ft.drop(columns=['taxa1', 'taxa2'])
+    
+    ft['fastq'] = ' '.join(ft['fastq']).replace('@','').split()
     ft.set_index('fastq', inplace=True)
-    
+    ## FAKE UMIs generatetor, temporary solution, cause I don't have files with UMIs
+    bases = ["A", "C", "G", "T"]
+    umis = [
+        "".join(random.choices(bases, k=12))
+        for _ in range(len(ft['taxa']))
+    ]
+    ft['UMI'] = umis
     # Remove fastq headers with short UMIs
     ft = ft[ft['UMI'].str.len().gt(11)]
-    
+    print(ft)
     # Place whole taxa order per taxID
-    ft['taxa_orderTMP'] = ft['taxa'].str.split(' ').str[-1].str[:-1].astype(int)
+    ft['taxa_orderTMP'] = ft['taxa'].str.split(' ').str[-1].str[:-1]#.astype(int)
     ft['sp_short'] = ft['taxa'].str.split(' ').str[0:2]
     
     ft['taxa_order'] = ft.apply(lambda row: tax_order_sp(row, tax_order_dict, sp_dict), axis = 1)
@@ -467,14 +495,12 @@ def taxa_per_spots(report_file, ft_file, fastq_file): # kraken 2 file, fastq hea
     # Pair with fastq headers
     ft['read'] = ft.index.map(fastq)
     
-    #########################################################################
-    #########################################################################
+    ######################################################################### 
     # Load DL model and encoder
     
-    model = keras.models.load_model(sys.argv[4])
-    encoder = pickle.load(open(sys.argv[5], 'rb'))
+    model = keras.models.load_model(model)
+    encoder = pickle.load(open(encoder, 'rb'))
     
-    #########################################################################
     #########################################################################
     ########### DL reassignment #############
     
@@ -485,16 +511,19 @@ def taxa_per_spots(report_file, ft_file, fastq_file): # kraken 2 file, fastq hea
     info_coordXY = ft.loc[:,['x','y']]
     info_coordXY.drop_duplicates(inplace=True)
     info_coordXY['tuple'] = list(zip(info_coordXY['x'], info_coordXY['y']))
+
+    print(info_coordXY)
     
     for tup in info_coordXY['tuple'].tolist():
         
         # Select spot      
         info_xy = ft[(ft['x'] == tup[0]) & (ft['y'] == tup[1])]
-         
+        print(info_xy)
+        
         if info_xy.shape[0] >0:
             Xpad = stack_padding(info_xy) # Stacking and padding/masking of reads
-            y_taxaorder, fastqH, umi = extract_taxa_info(info_xy, 'taxa_order', 'ST') # Collect taxa info
-            predictions = predict_taxa_in_model(Xpad, model) # Predict assignments using model
+            y_taxaorder, fastqH, umi = extract_taxa_info2(info_xy, 'taxa_order', 'ST') # Collect taxa info
+            predictions = model.predict(Xpad)# Predict assignments using model
     
             rv_predictions = encoder.inverse_transform(predictions.argmax(axis=1)) # Predict taxa using encoder
             
@@ -516,8 +545,8 @@ def taxa_per_spots(report_file, ft_file, fastq_file): # kraken 2 file, fastq hea
             # Store in df
             p = pd.DataFrame({'fastq':fastqH, 'taxa_order':new_taxaorder, 'UMI':umi})
             # Add spot coord
-            p['x'] = tup[0].split(':')[-1]
-            p['y'] = tup[1].split(':')[-1] 
+            p['x'] = tup[0]#.split(':')[-1]
+            p['y'] = tup[1]#.split(':')[-1] 
     
             dl_l.append(p)
     
@@ -570,6 +599,7 @@ def taxa_per_spots(report_file, ft_file, fastq_file): # kraken 2 file, fastq hea
         
     dff = pd.concat(spot_dfs)
     dff.set_index('fastq', inplace=True)
+    
     # Some stats after UMI collapsing
     with open(stat_file, 'a') as f:
         print('Number of reads AFTER UMI collapsing: ' + str(dff.shape[0]), file=f)
@@ -580,7 +610,7 @@ def taxa_per_spots(report_file, ft_file, fastq_file): # kraken 2 file, fastq hea
     #########################################################################
     # Create an output tsv file
     
-    # Spot coordinate xXy
+    # Spot coordinate x*y
     dff['spot_coord'] = dff['x'].str.split(':').str[-1] + 'x' + dff['y'].str.split(':').str[-1]
     
     # Count taxa per spot coordinate
