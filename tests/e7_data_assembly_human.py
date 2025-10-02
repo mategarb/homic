@@ -22,7 +22,7 @@ path = "/gpfs/commons/home/mgarbulowski/data_bi_wgs/us"
 print("Filtering...")
 file1 = path + "/SRR34978769_1.fastq"
 file2 = path + "/SRR34978769_2.fastq"
-process_data.trim_decon(path, db_path, file1, file2)
+process_data.trim_decon(db_path, file1, file2)
 #
 print("Assembling...")
 file1 = path + "/SRR34978769_k2_1.fastq"
@@ -45,7 +45,7 @@ os.rename(fa_path1, "/gpfs/commons/home/mgarbulowski/data_bi_wgs/us/SRR34978769_
 print("Filtering...")
 file1 = path + "/SRR34978773_1.fastq"
 file2 = path + "/SRR34978773_2.fastq"
-process_data.trim_decon(path, db_path, file1, file2)
+process_data.trim_decon(db_path, file1, file2)
 #
 print("Assembling...")
 file1 = path + "/SRR34978773_k2_1.fastq"
@@ -68,7 +68,7 @@ os.rename(fa_path1, "/gpfs/commons/home/mgarbulowski/data_bi_wgs/us/SRR34978773_
 print("Filtering...")
 file1 = path + "/SRR34978795_1.fastq"
 file2 = path + "/SRR34978795_2.fastq"
-process_data.trim_decon(path, db_path, file1, file2)
+process_data.trim_decon(db_path, file1, file2)
 #
 print("Assembling...")
 file1 = path + "/SRR34978795_k2_1.fastq"

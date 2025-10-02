@@ -127,8 +127,8 @@ epochs = 11
 batches = 50
 rank = "none"
 oh_model = dl_model.one_hot_model(prep_data_tra_all, prep_data_val,
-                                  oh_encoder, oh_encoder_val,
-                                  epochs, batches, rank, output_path_folder)
+                                  oh_encoder, oh_encoder_val, output_path_folder,
+                                  epochs, batches, rank)
 
 oh_model.classifier.summary()
 

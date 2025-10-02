@@ -357,7 +357,27 @@ def evaluation(model, output_fig):
 
 # Load and prepare simulated data
 # Read input fasta file
-def prepare_data(input_fq, ref_d, taxa_skip):
+def prepare_data(input_fq, ref_d, taxa_skip=False, asf = False):
+
+    """Prepares the data for encoding and learning.
+
+        Parameters
+        ----------
+        input_fq : string,
+            a path to .fastq file
+        ref_d : string,
+            an output from "file_readers.species_outcome()"
+        taxa_skip : boolean,
+            if true, skips taxa info and uses labels. Otherwise, runs taxa assignment via ete3.
+        asf : boolean,
+            use ASF species names instead of ASF id's.
+            
+        Returns
+        -------
+        df_merge
+            a data frame with reads and taxonomic assignments
+        """
+    
     fasta_d_tmp = parser(input_fq)
     ref_df = pd.DataFrame.from_dict(ref_d, orient='index', columns=['taxa'])
 
@@ -365,15 +385,15 @@ def prepare_data(input_fq, ref_d, taxa_skip):
     # Add taxa order for the species names in dict
 
         ref_df.loc[ref_df["taxa"] == "[Eubacterium] eligens", "taxa"] = 'Lachnospira eligens'
-        # in case of ASF
-        #ref_df.loc[ref_df["taxa"] == "ASF356 Clostridium", "taxa"] = 'Clostridium sp.'
-        #ref_df.loc[ref_df["taxa"] == "ASF360 Lactobacillus", "taxa"] = 'Lactobacillus intestinalis'
-        #ref_df.loc[ref_df["taxa"] == "ASF361 Lactobacillus", "taxa"] = 'Lactobacillus murinus'
-        #ref_df.loc[ref_df["taxa"] == "ASF457 Bacterium", "taxa"] = 'Mucispirillum schaedleri'
-        #ref_df.loc[ref_df["taxa"] == "ASF492 Eubacterium", "taxa"] = 'Eubacterium plexicaudatum'
-        #ref_df.loc[ref_df["taxa"] == "ASF500 Bacterium", "taxa"] = 'Pseudoflavonifractor sp.'
-        #ref_df.loc[ref_df["taxa"] == "ASF502 Clostridium", "taxa"] = 'Clostridium sp.'
-        #ref_df.loc[ref_df["taxa"] == "ASF519 Bacteroides", "taxa"] = 'Parabacteroides goldsteinii'
+        if asf:
+            ref_df.loc[ref_df["taxa"] == "ASF356 Clostridium", "taxa"] = 'Clostridium sp.'
+            ref_df.loc[ref_df["taxa"] == "ASF360 Lactobacillus", "taxa"] = 'Lactobacillus intestinalis'
+            ref_df.loc[ref_df["taxa"] == "ASF361 Lactobacillus", "taxa"] = 'Lactobacillus murinus'
+            ref_df.loc[ref_df["taxa"] == "ASF457 Bacterium", "taxa"] = 'Mucispirillum schaedleri'
+            ref_df.loc[ref_df["taxa"] == "ASF492 Eubacterium", "taxa"] = 'Eubacterium plexicaudatum'
+            ref_df.loc[ref_df["taxa"] == "ASF500 Bacterium", "taxa"] = 'Pseudoflavonifractor sp.'
+            ref_df.loc[ref_df["taxa"] == "ASF502 Clostridium", "taxa"] = 'Clostridium sp.'
+            ref_df.loc[ref_df["taxa"] == "ASF519 Bacteroides", "taxa"] = 'Parabacteroides goldsteinii'
         
         ncbi = ete3.NCBITaxa()
         taxids = ncbi.get_name_translator(ref_df["taxa"])
@@ -511,6 +531,20 @@ def prepare_data_old(input_fq, ref_d, ge_sp_dict, MIN_COUNT, errorR):
     return df_merge
 
 def one_hot_encoder(df_merge):
+
+    """Creates one-hot encoder.
+
+        Parameters
+        ----------
+        df_merge
+            a data frame with reads and taxonomic assignments
+            
+        Returns
+        -------
+        Xpad
+            one-hot encoded sequences
+        """
+    
     df_merge['one_hot_tensor'] = df_merge.apply(lambda row: dna_encode_embedding_table(row['read']), axis=1)
     X = np.array(df_merge['one_hot_tensor'].tolist(), dtype=object)
 
@@ -526,7 +560,33 @@ def one_hot_encoder(df_merge):
         Xpad[s, 0:seq_len, :] = x
     return Xpad
 
-def one_hot_model(data_train, data_val, encoder_tra, encoder_val, epochs, batches, rank, output_path):
+def one_hot_model(data_train, data_val, encoder_tra, encoder_val, output_path, epochs=11, batches=50, rank="none"):
+
+    """Creates DL model for one-hot encoder.
+
+        Parameters
+        ----------
+        data_train
+            a data frame with reads and taxonomic assignments for training data
+        data_val
+            a data frame with reads and taxonomic assignments for validation data
+        encoder_tra
+            a one-hot encoder for training data
+        encoder_val
+            a one-hot encoder for validation data
+        epochs
+            an integer, number of epochs
+        batches
+            an integer, number of batches
+        rank
+            a string of taxa rank, chose species, genus or none (non specified).
+            
+        Returns
+        -------
+        model
+            a one-hot model for training 
+        """
+    
     naming = str(data_train.shape[0])+'_totreads_'+str(epochs)+'epochs_'+str(batches)+'batches'
     masking_value = -1
     max_seq_len = max(len(x) for x in data_train['one_hot_tensor'].tolist())
@@ -752,7 +812,29 @@ def run_multithread(data, threads):
     return list(result)
 
 # regular version
-def predict_class_for_reads(info_xy, model, encoder, rank="none"):
+def predict_class_for_reads(info_xy, model, encoder, rank="genus"):
+
+    """Predicts taxa for reads.
+
+        Parameters
+        ----------
+        info_xy
+            a data frame with reads
+        model
+            a model based on one-hot encoder
+        encoder
+            a one-hot encoder
+        rank
+            a string of taxa rank, choose genus for genus, otherwise species is taken.
+            
+        Returns
+        -------
+        y_pred
+            predictions
+        class_freq
+            a frequencies (%) of predicted classes
+        """
+
     Xpad = stack_padding(info_xy) # stacking and padding/masking of reads
     
     predictions = model.predict(Xpad, verbose = 0) # predict assignments using the model
@@ -779,7 +861,29 @@ def predict_class_for_reads(info_xy, model, encoder, rank="none"):
     return y_pred, class_freq
 
 # parallel version
-def par_predict_class_for_reads(info_xy, model, encoder, rank="none"):
+def par_predict_class_for_reads(info_xy, model, encoder, rank="genus"):
+
+    """Predicts taxa for reads. Parallel version.
+
+        Parameters
+        ----------
+        info_xy
+            a data frame with reads
+        model
+            a model based on one-hot encoder
+        encoder
+            a one-hot encoder
+        rank
+            a string of taxa rank, choose genus for genus, otherwise species is taken.
+            
+        Returns
+        -------
+        y_pred
+            predictions
+        class_freq
+            a frequencies (%) of predicted classes
+        """
+    
     Xpad = stack_padding(info_xy) # stacking and padding/masking of reads
     
     rv_predictions = run_multithread(Xpad, threads=4)

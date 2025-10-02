@@ -1,9 +1,4 @@
 #!/usr/bin/env python
-
-import sys
-sys.path.append('/proj/berzelius-2024-407/users/x_magar/homic/src') # to load our package
-from homic import file_readers, kraken2, process_data
-
 import os
 import re
 import pysam
@@ -22,8 +17,26 @@ import time
 import re
 
     
-def trim_decon(path, dbpath, file1, file2, threads="32", option="paired"):
+def trim_decon(dbpath, file1, file2, threads="32"):
+    
+    """Trimming with trimmomatic and decontaminatig reads with kraken2.
 
+        Parameters
+        ----------
+        dbpath : string,
+            a path to the kraken2 db
+        file1 : string,
+            a path #1.fastq file
+        file2 : string,
+            a path #2.fastq file
+        threads : string,
+            number of threads
+            
+        Returns
+        -------
+        no output, files are saved
+    """
+    
 # 1. trimming
     file11 = file1.replace(".fastq", "_trimmed.fastq")
     file12 = file1.replace(".fastq", "_un_trimmed.fastq")
@@ -56,7 +69,7 @@ def trim_decon(path, dbpath, file1, file2, threads="32", option="paired"):
 
     output = file1.replace("_1.fastq", "_k2")
     
-    kraken2.decontaminate_paired(db_path = dbpath, 
+    decontaminate_paired(db_path = dbpath, 
                                 input_file1 = file11,
                                 input_file2 = file21,
                                 output = output,
@@ -64,7 +77,28 @@ def trim_decon(path, dbpath, file1, file2, threads="32", option="paired"):
     os.remove(file11)
     os.remove(file21)
 
-def assemble_decon(path, dbpath, file1, file2, threads="16", option="paired"):
+def assemble_decon(path, dbpath, file1, file2, threads="16"):
+
+    """Assembling with megahit and decontaminatig contigs with kraken2.
+
+        Parameters
+        ----------
+        path : string,
+            a path to the folder with files
+        dbpath : string,
+            a path to the kraken2 db
+        file1 : string,
+            a path #1.fastq file
+        file2 : string,
+            a path #2.fastq file
+        threads : string,
+            number of threads
+            
+        Returns
+        -------
+        no output, files are saved under path
+    """
+    
 # 3. assembling
 #    print("Assembling")
 #    cmd2 = ["megahit",
@@ -99,7 +133,7 @@ def assemble_decon(path, dbpath, file1, file2, threads="16", option="paired"):
     file = path + "/out_assembly/final.contigs.fa"
 
     output = file.replace("out_assembly/final.contigs.fa", "mic_contigs")
-    kraken2.decontaminate_single(db_path = dbpath, 
+    decontaminate_single(db_path = dbpath, 
                       input_file = file,
                       output = output,
                       threads = threads)
@@ -109,6 +143,28 @@ def assemble_decon(path, dbpath, file1, file2, threads="16", option="paired"):
 
 
 def run_blastn(path_fa, path_db, path_out, nthreads="16", evalue = "1e-6", ofmt="6 qseqid sseqid pident length evalue bitscore score stitle"):
+
+    """Runs blastn from the python level.
+
+        Parameters
+        ----------
+        path_fa : string,
+            a path to the fasta reference/s
+        path_db : string,
+            a path to the database
+        path_out : string,
+            an output path
+        nthreads : string,
+            number of threads
+        evalue : string,
+            evalue threshold
+        ofmt : string,
+            format of output result from blast
+            
+        Returns
+        -------
+        no output, files are saved under path_out
+    """
 
     #cmd = ["export PATH=$HOME/ncbi-blast-2.16.0+/bin:$PATH",]  # Generic metagenomes settings, default
     #print(cmd)
@@ -152,8 +208,29 @@ def select_genus(record):
     return record
 
 def read_n_clean_blastn(path_blast, top_hits = True, evalue = 0.05, drop_sp = True):
+
+    """Reads and cleans output from blastn.
+
+        Parameters
+        ----------
+        path_blast : string,
+            a path to the blast result
+        top_hits : boolean,
+            tophits only
+        evalue : float,
+            minimum evalue to keep a record
+        drop_sp : boolean,
+            drop species marked with suffix .sp
+            
+        Returns
+        -------
+        data
+            pandas data frame with formatted blastn results
+    """
+    
     data = pd.read_csv(path_blast, header = None, delimiter = "\t")
-    data = data.rename({0: "contig_id", 1: "subject_id", 2: "pident", 3: "length", 4: "evalue", 5: "bitscore", 6: "score", 7: "subject_title"}, axis='columns')
+    data = data.rename({0: "contig_id", 1: "subject_id", 2: "pident", 3: "length", 
+                        4: "evalue", 5: "bitscore", 6: "score", 7: "subject_title"}, axis='columns')
 
     # removing reduntant words from titles to get species
     words = data["subject_title"].to_list()
@@ -496,3 +573,113 @@ def InputReadsFilter(fw,
     #qa_stats.input_reads_reverse = total_reads
     #qa_stats.reads_after_trimming_forward = remaining_reads
     #qa_stats.reads_after_trimming_reverse = remaining_reads
+
+
+def decontaminate_paired(db_path, input_file1, input_file2, output, confidence=0.5, threads=12, min_base_qual=22):
+    """Decontamination with kraken2 for paired .fastq files.
+
+        Parameters
+        ----------
+        db_path : string,
+            a path to kraken db
+        input_file1 : string,
+            a path to the first .fastq file
+        input_file2 : string,
+            a path to the second .fastq file
+        output : string,
+            a path to the output .fastq file where host reads are removed
+        confidence : float,
+            kraken2 parameter - confidence (--confidence)
+        threads : intiger,
+            kraken2 parameter - number of threads (--threads)
+        min_base_qual : intiger,
+            kraken2 parameter - minimum base quality (--minimum-base-quality)
+            
+        Returns
+        -------
+        no output, files are saved under "output"
+    """
+    db_path = os.path.realpath(db_path)
+    current_dir = path.join(path.dirname(__file__))
+    classify_bin = os.path.join(current_dir + "/kraken2_install", "kraken2")
+    
+    database_path = find_database(db_path)
+    
+    if database_path is None:
+        LOG.error("This is not a valid database... exiting".format(db_path))
+        sys.exit(1)
+    if confidence < 0 or confidence > 1:
+        LOG.error("Confidence must be between 0 and 1 inclusive".format(confidence))
+        sys.exit(1)
+
+
+    cmd = [classify_bin,
+        "--db",
+        db_path,
+        "--threads",
+        str(threads),
+        "--confidence",
+        str(confidence),
+        "--minimum-base-quality",
+        str(min_base_qual),
+        "--unclassified-out",
+        output + "#.fastq",
+        "--paired",
+        input_file1,
+        input_file2,
+        ]
+
+    subprocess.call(cmd, stdout=subprocess.DEVNULL)
+
+def decontaminate_single(db_path, input_file, output, confidence=0.5, threads=8, min_base_qual=22):
+    """Decontamination with kraken2 for single .fastq (unpaired).
+
+        Parameters
+        ----------
+        db_path : string,
+            a path to kraken db
+        input_file : string,
+            a path to the .fastq file
+        output : string,
+            a path to the output .fastq file where host reads are removed
+        confidence : float,
+            kraken2 parameter - confidence (--confidence)
+        threads : intiger,
+            kraken2 parameter - number of threads (--threads)
+        min_base_qual : intiger,
+            kraken2 parameter - minimum base quality (--minimum-base-quality)
+            
+        Returns
+        -------
+        no output, files are saved under "output"
+    """
+
+    db_path = os.path.realpath(db_path)
+    current_dir = path.join(path.dirname(__file__))
+    classify_bin = os.path.join(current_dir + "/kraken2_install", "kraken2")
+    
+    database_path = find_database(db_path)
+    
+    if database_path is None:
+        LOG.error("This is not a valid database... exiting".format(db_path))
+        sys.exit(1)
+    if confidence < 0 or confidence > 1:
+        LOG.error("Confidence must be between 0 and 1 inclusive".format(confidence))
+        sys.exit(1)
+        
+    cmd = [classify_bin,
+        "--db",
+        db_path,
+        "--threads",
+        str(threads),
+        "--confidence",
+        str(confidence),
+        "--minimum-base-quality",
+        str(min_base_qual),
+        "--unclassified-out",
+        output + ".fastq",
+        "--single",
+        input_file,
+        ]
+    
+    subprocess.call(cmd, stdout=subprocess.DEVNULL)
