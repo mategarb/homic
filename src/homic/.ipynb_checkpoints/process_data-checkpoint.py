@@ -6,7 +6,7 @@ import ctypes
 import shutil
 import numpy as np
 import pandas as pd
-import statistics
+import statistics as st
 import seaborn as sns
 import os
 from os import path
@@ -17,8 +17,10 @@ from Bio import Entrez
 import time
 import re
 from .kraken2 import decontaminate_paired, decontaminate_single
+from .file_readers import fastq
+import glob
+from Bio import SeqIO
 
-    
 def trim_decon(dbpath, file1, file2, adapt_seq_path, head_crop=19, crop=260, threads=32):
     
     """Trimming with trimmomatic and decontaminatig reads with kraken2.
@@ -88,7 +90,7 @@ def trim_decon(dbpath, file1, file2, adapt_seq_path, head_crop=19, crop=260, thr
     os.remove(file11)
     os.remove(file21)
 
-def assemble_decon(path, dbpath, file1, file2, threads=16):
+def assemble_decon(path, dbpath, file1, file2, samp_id="no_id", threads=16):
 
     """Assembling with megahit and decontaminatig contigs with kraken2.
 
@@ -143,17 +145,129 @@ def assemble_decon(path, dbpath, file1, file2, threads=16):
     print("Decontaminating contigs")
     file = path + "/out_assembly/final.contigs.fa"
 
-    output = file.replace("out_assembly/final.contigs.fa", "mic_contigs")
+    output = file.replace("out_assembly/final.contigs.fa", "metagenome_contigs_" + samp_id)
     decontaminate_single(db_path = dbpath, 
                       input_file = file,
                       output = output,
                       threads = threads)
     
-    #shutil.rmtree(path + '/out_assembly', ignore_errors=True)
+    shutil.rmtree(path + '/out_assembly', ignore_errors=True)
     print("Done!")
 
 
-def run_blastn(path_fa, path_db, path_out, nthreads="16", evalue = "1e-6", ofmt="6 qseqid sseqid pident length evalue bitscore score stitle"):
+
+
+def bow_bat(assembly_path, file_1, file_2, out_dir, only_metabat=False, min_contig = 1500): # bowtie + metabat
+
+    """Assembling with megahit and decontaminatig contigs with kraken2.
+
+        Parameters
+        ----------
+        path : string,
+            a path to the folder with files
+        dbpath : string,
+            a path to the kraken2 db
+        file1 : string,
+            a path #1.fastq file
+        file2 : string,
+            a path #2.fastq file
+        threads : string,
+            number of threads
+            
+        Returns
+        -------
+        no output, files are saved under path
+    """
+    
+    # Create output directory if it doesn't exist
+    if not only_metabat:
+
+        lengths = [len(rec.seq) for rec in SeqIO.parse(assembly_path, "fasta")]
+        print("Number of contigs:", len(lengths))
+        print("Longest contig:", max(lengths))
+        print("Shortest contig:", min(lengths))
+        print("Average contig length:", st.mean(lengths))
+
+        os.makedirs(out_dir, exist_ok=True)
+        
+        # Build Bowtie2 index from contigs
+        print("Building Bowtie2 index...")
+        ass_ind = os.path.join(out_dir, "assembly_index")
+        subprocess.run([
+            "bowtie2-build",
+            assembly_path,
+            ass_ind
+        ])
+        
+        # Map paired reads to contigs
+        print("Mapping reads to contigs with Bowtie2...")
+        bam_file = os.path.join(out_dir, "reads_mapped.bam")
+        sam_file = os.path.join(out_dir, "reads_mapped.sam")
+    
+        
+        subprocess.run([
+            "bowtie2",
+            "-x", ass_ind,
+            "-1", file_1,
+            "-2", file_2,
+            "-S", sam_file
+        ])
+        
+        # Convert SAM to BAM and sort
+        print("Converting SAM to sorted BAM...")
+        subprocess.run([
+            "samtools", "view", "-bS", sam_file, "-o", bam_file
+        ])
+        
+        sorted_bam = os.path.join(out_dir, "reads_mapped_sorted.bam")
+        subprocess.run([
+            "samtools", "sort", "-o", sorted_bam, bam_file
+        ])
+        
+        # Index BAM
+        subprocess.run([
+            "samtools", "index", sorted_bam
+        ])
+
+        # Remove redundant files
+        os.remove(bam_file)
+        os.remove(sam_file)    
+        #start_char = "assembly_index"  # files starting with 'a'
+
+        #pattern = os.path.join(out_dir, f"{start_char}*")
+        #for file_path in glob.glob(pattern):
+        #    if os.path.isfile(file_path):  # make sure it's a file
+        #        os.remove(file_path)
+        
+        # Run MetaBAT2
+        subprocess.run([
+            "metabat2",
+            "-i", assembly_path,
+            "-a", sorted_bam,
+            "-o", os.path.join(out_dir, "bin"),
+            "--minContig", str(min_contig)
+        ])
+    else:
+
+        lengths = [len(rec.seq) for rec in SeqIO.parse(assembly_path, "fasta")]
+        print("Number of contigs:", len(lengths))
+        print("Longest contig:", max(lengths))
+        print("Shortest contig:", min(lengths))
+        print("Average contig length:", st.mean(lengths))
+        
+        # Run MetaBAT2
+        os.makedirs(out_dir, exist_ok=True)
+        sorted_bam = os.path.join(out_dir, "reads_mapped_sorted.bam")
+        subprocess.run([
+            "metabat2",
+            "-i", assembly_path,
+            "-a", sorted_bam,
+            "-o", os.path.join(out_dir, "bin"),
+            "--minContig", str(min_contig)
+        ])
+
+
+def run_blastn(path_fa, path_db, path_out, nthreads=16, evalue=1e-6, max_ts=1, max_h=1, ofmt="6 qseqid sseqid pident length evalue bitscore score stitle"):
 
     """Runs blastn from the python level.
 
@@ -187,15 +301,19 @@ def run_blastn(path_fa, path_db, path_out, nthreads="16", evalue = "1e-6", ofmt=
             "-query",
             path_fa,
             "-db",
-           path_db,
-           "-num_threads",
-           nthreads,
+            path_db,
+            "-num_threads",
+            str(nthreads),
             "-evalue",
-            evalue,
+            str(evalue),
+            "-max_target_seqs",
+            str(max_ts),
+            "-max_hsps",
+            str(max_h),
             "-outfmt",
             ofmt,
-           "-out",
-           path_out]  # Generic metagenomes settings, default
+            "-out",
+            path_out]  # Generic metagenomes settings, default
     
     subprocess.call(cmd2)
 
@@ -205,8 +323,6 @@ def clean_word(word):
     word = word.replace('MAG: ', '')
     word = word.replace('uncultured ', '')
     return word
-    
-
 
 def select_species(record):
     record = record.split()[:2]
@@ -218,7 +334,39 @@ def select_genus(record):
     record = ' '.join(record)
     return record
 
-def read_n_clean_blastn(path_blast, top_hits = True, evalue = 0.05, drop_sp = True):
+
+def perc_contigs_assigned(path_blast, path_ctgs):
+
+    data = pd.read_csv(path_blast, header = None, delimiter = "\t")
+    data = data.rename({0: "contig_id", 1: "subject_id", 2: "pident", 3: "length", 
+                            4: "evalue", 5: "bitscore", 6: "score", 7: "subject_title"}, axis='columns')
+    
+    blast_ctgs = set(data["contig_id"].to_list())
+    all_ctgs = fastq(path_ctgs)
+    
+    
+    all_ctgs_heads = np.array(all_ctgs[0]).flatten().tolist()
+    
+    all_ctgs_ids = []
+    for s in all_ctgs_heads:
+        idx = s.find(">") + 1  # find position of starting character
+        if idx != -1:
+            # take substring from idx until first space after idx
+            end_idx = s.find(" ", idx)
+            if end_idx == -1:  # no space found, take till end
+                all_ctgs_ids.append(s[idx:])
+            else:
+                all_ctgs_ids.append(s[idx:end_idx])
+        else:
+            all_ctgs_ids.append("")
+    
+    inter_ctgs = list(blast_ctgs & set(all_ctgs_ids))
+    
+    return len(inter_ctgs)/len(all_ctgs_ids)
+
+    
+    
+def read_n_clean_blastn(path_blast, top_hits = False, evalue = 0.05, drop_sp = False):
 
     """Reads and cleans output from blastn.
 
@@ -256,7 +404,7 @@ def read_n_clean_blastn(path_blast, top_hits = True, evalue = 0.05, drop_sp = Tr
 
 
     # remove duplicated hits  
-    data = data.drop_duplicates(subset=['contig_id','species'])
+    #data = data.drop_duplicates(subset=['contig_id','species'])
     
     # droping undefined species
     if drop_sp:
