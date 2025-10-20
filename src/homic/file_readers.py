@@ -7,6 +7,7 @@ import pandas as pd
 import re
 import ete3
 from Bio.Seq import Seq
+import random
 
 #####################################################################################################
 #####################################################################################################
@@ -184,6 +185,57 @@ def save_fastq_as_rev_comp(path):
             print(qual_lines[i].strip(), file = f) # quality sequence
 
 
+def save_pfastq_Nreads(path1, path2, Nreads):
+
+    """Reads fastq file and creates new fastq with reverse complementary reads.
+
+        No default parameters. All must be specified.
+
+        Parameters
+        ----------
+        path : string,
+            path to the .fastq file.
+
+        Returns
+        -------
+        no outputs
+            new file is created with the same name + "_rc.fastq" extension
+        """
+    
+    header_lines1, read_lines1, qual_lines1 = fastq(path1)
+    header_lines2, read_lines2, qual_lines2 = fastq(path2)
+
+    inds = random.sample(range(1, len(header_lines1)), Nreads)
+
+    header_lines1 = [header_lines1[i] for i in inds]
+    read_lines1 = [read_lines1[i] for i in inds]
+    qual_lines1 = [qual_lines1[i] for i in inds]
+    
+    path3 = path1.replace(".fastq", "")
+    path3 = path3 + "_" + str(Nreads) + ".fastq"
+    n = len(read_lines1)
+    
+    with open(path3, 'a+') as f:
+        for i in range(n):
+            print(header_lines1[i].strip(), file = f) # fastq header
+            print(read_lines1[i], file = f) # reads
+            print('+', file = f) # strand
+            print(qual_lines1[i].strip(), file = f) # quality sequence
+###
+    header_lines2 = [header_lines2[i] for i in inds]
+    read_lines2 = [read_lines2[i] for i in inds]
+    qual_lines2 = [qual_lines2[i] for i in inds]
+    
+    path4 = path2.replace(".fastq", "")
+    path4 = path4 + "_" + str(Nreads) + ".fastq"
+    n = len(read_lines2)
+    
+    with open(path4, 'a+') as f:
+        for i in range(n):
+            print(header_lines2[i].strip(), file = f) # fastq header
+            print(read_lines2[i], file = f) # reads
+            print('+', file = f) # strand
+            print(qual_lines2[i].strip(), file = f) # quality sequence    
 
 #####################################################################################################
 #####################################################################################################

@@ -20,6 +20,7 @@ from .kraken2 import decontaminate_paired, decontaminate_single
 from .file_readers import fastq
 import glob
 from Bio import SeqIO
+from collections import Counter
 
 def trim_decon(dbpath, file1, file2, adapt_seq_path, head_crop=19, crop=260, threads=32):
     
@@ -90,7 +91,7 @@ def trim_decon(dbpath, file1, file2, adapt_seq_path, head_crop=19, crop=260, thr
     os.remove(file11)
     os.remove(file21)
 
-def assemble_decon(path, dbpath, file1, file2, samp_id="no_id", threads=16):
+def assemble_decon(path, dbpath, file1, file2, samp_id="no_id", threads=16, min_con_len = 500):
 
     """Assembling with megahit and decontaminatig contigs with kraken2.
 
@@ -130,8 +131,10 @@ def assemble_decon(path, dbpath, file1, file2, samp_id="no_id", threads=16):
             paths_r2,
             "-o",
             path + "/out_assembly",
+            "--min-contig-len",
+            str(min_con_len), # default 200
             "-t",
-            str(threads),]  # Generic metagenomes settings, default
+            str(threads),]  # generic metagenomes settings, default
 
     shutil.rmtree(path + '/out_assembly', ignore_errors=True)
     
@@ -366,7 +369,7 @@ def perc_contigs_assigned(path_blast, path_ctgs):
 
     
     
-def read_n_clean_blastn(path_blast, top_hits = False, evalue = 0.05, drop_sp = False):
+def read_n_clean_blastn(path_blast, top_hits = False, evalue = 0.05, drop_sp = False, drop_uncultured = True):
 
     """Reads and cleans output from blastn.
 
@@ -405,10 +408,19 @@ def read_n_clean_blastn(path_blast, top_hits = False, evalue = 0.05, drop_sp = F
 
     # remove duplicated hits  
     #data = data.drop_duplicates(subset=['contig_id','species'])
+
+    # clean MAGs
+    all_specs = data["species"]
+    data["species"] = [s.removeprefix("MAG: ") for s in data["species"]]
+    data["species"] = [s.removeprefix("MAG TPA_asm: ") for s in data["species"]]
     
     # droping undefined species
     if drop_sp:
         rem_und = ["sp." not in spec for spec in data["species"]]
+        data = data[rem_und]
+
+    if drop_uncultured:
+        rem_und = ["Uncultured" not in spec for spec in data["species"]]
         data = data[rem_und]
 
     #if top_hits:
@@ -428,8 +440,47 @@ def read_n_clean_blastn(path_blast, top_hits = False, evalue = 0.05, drop_sp = F
     data = data.sort_values(by=['bitscore'], ascending=False)
 
     return data
-    
 
+def chao_idx(taxa_list): #a non-parametric method for estimating the total number of species
+    cnt = Counter(taxa_list)  # source: https://palaeo-electronica.org/2011_1/238/estimate.htm
+    S_obs = len(cnt)
+    F1 = sum(1 for v in cnt.values() if v == 1)
+    F2 = sum(1 for v in cnt.values() if v == 2)
+    
+    if F2 == 0:
+        chao1i = None
+    else:
+        chao1i = S_obs + (F1 * F1) / (2 * F2)
+
+    return chao1i, S_obs, F1, F2
+
+def jknife1(taxa_list, m): # source: https://palaeo-electronica.org/2011_1/238/estimate.htm
+    cnt = Counter(taxa_list)  
+    S_obs = len(cnt)
+    Q1 = sum(1 for v in cnt.values() if v == 1)
+    Q2 = sum(1 for v in cnt.values() if v == 2)
+    
+    if Q2 == 0:
+        jk1 = None
+    else:
+        jk1 = S_obs + (Q1 * (m - 1))/m
+
+    return jk1, S_obs, Q1, Q2
+
+def jknife2(taxa_list, m): # source: https://palaeo-electronica.org/2011_1/238/estimate.htm
+    cnt = Counter(taxa_list)  
+    S_obs = len(cnt)
+    Q1 = sum(1 for v in cnt.values() if v == 1)
+    Q2 = sum(1 for v in cnt.values() if v == 2)
+    
+    if Q2 == 0:
+        jk2 = None
+    else:
+        jk2 = S_obs + (((Q1 * (2*m - 3))/m) - ((Q2 * (m - 2) * (m - 2))/(m * (m - 1))))
+
+    return jk2, S_obs, Q1, Q2
+
+    
 ## below is snippet from the Brittas repo
 
 # next steps are outside in bash, to map assemblies to reads and bin (optionall), finally perofrm blastn
