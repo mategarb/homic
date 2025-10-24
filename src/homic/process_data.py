@@ -369,7 +369,7 @@ def perc_contigs_assigned(path_blast, path_ctgs):
 
     
     
-def read_n_clean_blastn(path_blast, top_hits = False, evalue = 0.05, drop_sp = False, drop_uncultured = True):
+def read_n_clean_blastn(path_blast, top_hits = True, evalue = 1e-100, pident=0.98, drop_sp = False, drop_uncultured = True, drop_bacterium=True, drop_virus=True, best_unique = False):
 
     """Reads and cleans output from blastn.
 
@@ -394,7 +394,33 @@ def read_n_clean_blastn(path_blast, top_hits = False, evalue = 0.05, drop_sp = F
     data = data.rename({0: "contig_id", 1: "subject_id", 2: "pident", 3: "length", 
                         4: "evalue", 5: "bitscore", 6: "score", 7: "subject_title"}, axis='columns')
 
-    # removing reduntant words from titles to get species
+    ### filtering
+    # e-value
+    data = data[data['evalue'] < evalue]
+    # pident    
+    data = data[data['pident'] > pident]
+    
+    ### clean MAGs
+    all_specs = data["subject_title"]
+    mag_rem = []
+    for string in all_specs:
+        new_str = re.sub(r'MAG(?:[\s_]*TPA_asm)?:?\s*', '', string)
+        new_str = re.sub(r'\s*\d+$', '', new_str)
+        mag_rem.append(new_str)
+        
+    mag_rem = [s.replace('TPA_exp:','') for s in mag_rem]
+    data["subject_title"] = mag_rem
+
+    ### clean brackets
+    all_specs = data["subject_title"]
+    data_nobr = [s.replace('[','').replace(']','') for s in all_specs]
+    data["subject_title"] = data_nobr
+
+    if drop_virus:
+        rem_und = ["virus" not in spec.lower() for spec in data["subject_title"]]
+        data = data[rem_und]
+            
+    ### removing reduntant words from titles to get species
     words = data["subject_title"].to_list()
     recs = list(map(clean_word, words))
     all_species = list(map(select_species, recs))
@@ -402,40 +428,52 @@ def read_n_clean_blastn(path_blast, top_hits = False, evalue = 0.05, drop_sp = F
     
     data["species"] = all_species
     data["genus"] = all_genus
+
+    # other things to clean
+    #CrAss-like
+    #16S
     
-    data = data[data['evalue'] < evalue]
-
-
-    # remove duplicated hits  
-    #data = data.drop_duplicates(subset=['contig_id','species'])
-
-    # clean MAGs
-    all_specs = data["species"]
-    data["species"] = [s.removeprefix("MAG: ") for s in data["species"]]
-    data["species"] = [s.removeprefix("MAG TPA_asm: ") for s in data["species"]]
-    
-    # droping undefined species
+    ### droping undefined species
     if drop_sp:
         rem_und = ["sp." not in spec for spec in data["species"]]
         data = data[rem_und]
 
     if drop_uncultured:
-        rem_und = ["Uncultured" not in spec for spec in data["species"]]
+        rem_und = ["uncultured" not in spec.lower() for spec in data["species"]]
         data = data[rem_und]
 
-    #if top_hits:
-    #    data = (data.groupby("contig_id", group_keys=False)
-    #      .apply(lambda g: g[g["evalue"] == g["evalue"].min()])
-    #      .groupby("contig_id", group_keys=False)
-    #      .apply(lambda g: g[g["bitscore"] == g["bitscore"].max()])
-    #      .reset_index(drop=True))
+    if drop_bacterium:
+        rem_und = ["bacterium" not in spec.lower() for spec in data["species"]]
+        data = data[rem_und]
+
     if top_hits:
         data = (
             data.sort_values(by=["contig_id", "evalue", "bitscore"], ascending=[True, True, False])
           .drop_duplicates(subset="contig_id", keep="first")
           .reset_index(drop=True))
         
-    # fianlly, sorting by two columns: evalue & bitscore
+    if best_unique:
+        data = (
+            data.sort_values(by=["species", "evalue", "bitscore"], ascending=[True, True, False])
+          .drop_duplicates(subset="species", keep="first")
+          .reset_index(drop=True))
+
+    tmp_rem = ["homo" not in spec.lower() for spec in data["genus"]]
+    data = data[tmp_rem]
+
+    tmp_rem = ["16S" not in spec.lower() for spec in data["genus"]]
+    data = data[tmp_rem]
+
+    tmp_rem = ["human" not in spec.lower() for spec in data["genus"]]
+    data = data[tmp_rem]
+
+    tmp_rem = ["phage" not in spec.lower() for spec in data["genus"]]
+    data = data[tmp_rem]
+
+    tmp_rem = ["crassphage" not in spec.lower() for spec in data["genus"]]
+    data = data[tmp_rem]
+
+    ### finally, sorting by two columns: evalue & bitscore
     data = data.sort_values(by=['evalue'], ascending=True)
     data = data.sort_values(by=['bitscore'], ascending=False)
 
