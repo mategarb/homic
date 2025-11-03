@@ -260,6 +260,49 @@ def bray_curtis_bench(braycurtis_d, taxa_orders, path):
         
     plt.savefig(path + fname + '_bray-curtis.png')
 
+def relative_abundance_double(data1, data2, name1, name2):
+    # plot data in stack manner of bar type
+    fig, axes = plt.subplots(1, 2, figsize=(12, 5))
+    
+    data1.T.plot(
+        kind='bar',
+        stacked=True,
+        ax=axes[0],
+        colormap='tab20'
+    )
+    axes[0].set_title(name1)
+    axes[0].set_ylabel('Relative abundance')
+    axes[0].set_xticks([])
+    for patch, label in zip(axes[0].patches, data1.index):
+        if label == 'Other':
+            patch.set_facecolor('dimgray')
+    axes[0].legend(bbox_to_anchor=(1.05, 1), loc='upper left')
+            
+    data2.T.plot(
+        kind='bar',
+        stacked=True,
+        ax=axes[1],
+        colormap='tab20'
+    )
+    axes[1].set_title(name2)
+    axes[1].set_ylabel('Relative abundance')
+    axes[1].set_xticks([])
+    for patch, label in zip(axes[1].patches, data2.index):
+        if label == 'Other':
+            patch.set_facecolor('dimgray')
+    axes[1].legend(bbox_to_anchor=(1.05, 1), loc='upper left')
+    
+    axes[0].text(-0.1, 1.05, "A", transform=axes[0].transAxes,
+            fontsize=16, fontweight='bold', va='top', ha='right')
+    axes[1].text(-0.1, 1.05, "B", transform=axes[1].transAxes,
+            fontsize=16, fontweight='bold', va='top', ha='right')
+    
+    
+    plt.tight_layout()
+    plt.show()
+    return fig
+
+
 
 def relative_abundance_single(data, data_name, thr = 0.01, ntop = 10):
 

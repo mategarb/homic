@@ -22,7 +22,7 @@ import glob
 from Bio import SeqIO
 from collections import Counter
 
-def trim_decon(dbpath, file1, file2, adapt_seq_path, head_crop=19, crop=260, threads=32):
+def trim_decon_pe(dbpath, file1, file2, adapt_seq_path, head_crop=19, crop=260, threads=32): # illumina, PE
     
     """Trimming with trimmomatic and decontaminatig reads with kraken2.
 
@@ -78,20 +78,116 @@ def trim_decon(dbpath, file1, file2, adapt_seq_path, head_crop=19, crop=260, thr
     os.remove(file22)
 
 
-# 2. decontaminating
+
+
+def chop_decon_se(dbpath, file, adapt_seq_path, head_crop=10, min_quality=10, min_length=500, threads=32): # ont, SE
+    
+    """Filtering with chopper and decontaminatig reads with kraken2.
+
+        Parameters
+        ----------
+        dbpath : string,
+            a path to the kraken2 db
+        file : string,
+            a path .fastq file
+        threads : string,
+            number of threads
+            
+        Returns
+        -------
+        no output, files are saved
+    """
+    
+# 1. trimming
+    if file[-2:] == "gz":
+        file2 = file.replace(".fastq.gz", "_chopped.fastq")
+        output = file.replace(".fastq.gz", "_k2") # the same folder where original files are
+    else:
+        file2 = file.replace(".fastq", "_chopped.fastq")
+        output = file.replace(".fastq", "_k2") # the same folder where original files are
+    
+    print("Chopping and filtering")
+    cmd = ["chopper",
+            "-q",
+            str(min_quality),
+            "-l",
+            str(min_length),
+            "--headcrop",
+            str(head_crop),
+            "-i",
+            file,
+            ">",
+            file2,] ## settings from here http://www.usadellab.org/cms/uploads/supplementary/Trimmomatic/TrimmomaticManual_V0.32.pdf
+    subprocess.call(cmd)
+
+    # 2. decontaminating
     print("Decontaminating reads")
 
-    output = file1.replace("_R1_001.fastq.gz", "_k2") # the same folder where original files are
+
     
-    decontaminate_paired(db_path = dbpath, 
-                                input_file1 = file11,
-                                input_file2 = file21,
+    decontaminate_single(db_path = dbpath, 
+                                input_file = file2,
                                 output = output,
                                 threads = threads)
-    os.remove(file11)
-    os.remove(file21)
+    os.remove(file2)
 
-def assemble_decon(path, dbpath, file1, file2, samp_id="no_id", threads=16, min_con_len = 500):
+
+def assemble_decon_se(path, dbpath, file, samp_id="no_id", threads=16, min_con_len = 500): # SE
+
+    """Assembling with megahit and decontaminatig contigs with kraken2.
+
+        Parameters
+        ----------
+        path : string,
+            a path to the folder with files
+        dbpath : string,
+            a path to the kraken2 db
+        file1 : string,
+            a path #1.fastq file
+        file2 : string,
+            a path #2.fastq file
+        threads : string,
+            number of threads
+            
+        Returns
+        -------
+        no output, files are saved under path
+    """
+    
+
+    cmd2 = ["megahit",
+            "-r",
+            file,
+            "-o",
+            path + "/out_assembly",
+            "--min-contig-len",
+            str(min_con_len), # default 200
+            "-t",
+            str(threads),]  # generic metagenomes settings, default
+
+    shutil.rmtree(path + '/out_assembly', ignore_errors=True)
+    
+    subprocess.call(cmd2)
+    
+    #os.remove(paths_r1)
+    #os.remove(paths_r2)
+
+    # 4. decontaminating II 
+    print("Decontaminating contigs")
+    file = path + "/out_assembly/final.contigs.fa"
+
+    output = file.replace("out_assembly/final.contigs.fa", "metagenome_contigs_" + samp_id)
+    decontaminate_single(db_path = dbpath, 
+                      input_file = file,
+                      output = output,
+                      threads = threads)
+    
+    shutil.rmtree(path + '/out_assembly', ignore_errors=True)
+    print("Done!")
+
+
+
+def assemble_decon_pe(path, dbpath, file1, file2, samp_id="no_id", threads=16, min_con_len = 500):
 
     """Assembling with megahit and decontaminatig contigs with kraken2.
 
@@ -139,12 +235,8 @@ def assemble_decon(path, dbpath, file1, file2, samp_id="no_id", threads=16, min_
     shutil.rmtree(path + '/out_assembly', ignore_errors=True)
     
     subprocess.call(cmd2)
-    
-    #os.remove(paths_r1)
-    #os.remove(paths_r2)
-    
-    
-# 4. decontaminating II 
+
+    # 4. decontaminating II 
     print("Decontaminating contigs")
     file = path + "/out_assembly/final.contigs.fa"
 
@@ -156,8 +248,11 @@ def assemble_decon(path, dbpath, file1, file2, samp_id="no_id", threads=16, min_
     
     shutil.rmtree(path + '/out_assembly', ignore_errors=True)
     print("Done!")
-
-
+    
+    #os.remove(paths_r1)
+    #os.remove(paths_r2)
+    
+    
 
 
 def bow_bat(assembly_path, file_1, file_2, out_dir, only_metabat=False, min_contig = 1500): # bowtie + metabat
@@ -321,8 +416,13 @@ def run_blastn(path_fa, path_db, path_out, nthreads=16, evalue=1e-6, max_ts=1, m
     subprocess.call(cmd2)
 
 
-def clean_word(word):
-    word = word.split(' ', 1)[1]
+def clean_word(word, db):
+    
+    if db == "rs": # in refseq, titles don't start with ID
+        word = word.split(' ', 0)[0]
+    else:
+        word = word.split(' ', 1)[1]
+        
     word = word.replace('MAG: ', '')
     word = word.replace('uncultured ', '')
     return word
@@ -367,9 +467,26 @@ def perc_contigs_assigned(path_blast, path_ctgs):
     
     return len(inter_ctgs)/len(all_ctgs_ids)
 
+
+
+def select_taxa(path_blast, samps_ids, taxa_level="species", db = "nt"):
     
+    all_dfs = []
+    for idx, samp in enumerate(samps_ids):  
+        path_blast_full = path_blast + samp + "_blastn_report.txt"
+        df = read_n_clean_blastn(path_blast_full, db = db) # use defaults
+        all_dfs.append(df)
     
-def read_n_clean_blastn(path_blast, top_hits = True, evalue = 1e-100, pident=0.98, drop_sp = False, drop_uncultured = True, drop_bacterium=True, drop_virus=True, best_unique = False):
+    df_merged = pd.concat(all_dfs, ignore_index=True)
+    bcounts = df_merged[taxa_level].value_counts(normalize=True)
+    bcounts_01 = bcounts[bcounts > 0.1 * 0.01]
+    bcounts_005 = bcounts[bcounts > 0.05 * 0.01]
+    bcounts_001 = bcounts[bcounts > 0.01 * 0.01]
+    return bcounts_01, bcounts_005, bcounts_001, df_merged
+
+
+    
+def read_n_clean_blastn(path_blast, db = "nt", top_hits = True, evalue = 1e-100, pident=0.98, drop_sp = True, drop_uncultured = True, drop_bacterium=True, drop_virus=True, best_unique = False):
 
     """Reads and cleans output from blastn.
 
@@ -422,7 +539,9 @@ def read_n_clean_blastn(path_blast, top_hits = True, evalue = 1e-100, pident=0.9
             
     ### removing reduntant words from titles to get species
     words = data["subject_title"].to_list()
-    recs = list(map(clean_word, words))
+    #recs = list(map(clean_word, words))
+    recs = list(map(lambda w: clean_word(w, db), words))
+    
     all_species = list(map(select_species, recs))
     all_genus = list(map(select_genus, recs))
     

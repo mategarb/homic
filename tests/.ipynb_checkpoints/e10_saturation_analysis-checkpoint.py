@@ -27,7 +27,7 @@ all_samps = ["KP005", "KP012", "KP013", "KP016", "KP024", "KP025", "KP026", "KP0
 # 1. shuffling reads
 reads_n = []
 spec_n = []
-idx=7 # sample index
+idx=15 # sample index
 
 #for idx, samp in enumerate(all_samps): 
 
@@ -37,9 +37,24 @@ reads_r2 = "/gpfs/commons/home/mgarbulowski/016_proj_shm/metagenomes_lib/Metagen
 
 tmp_r1 = file_readers.fastq(reads_r1)
 all_reads = len(tmp_r1[0])
-print(all_reads)
 
-for Nreads in [10000, 50000, 100000, 250000, 500000, 750000, 1000000, 1250000, 1500000, 1750000]:
+# top 3 mid
+#5: [10000, 50000, 100000, 250000, 500000, 750000, 1000000]
+#6: [10000, 50000, 100000, 250000, 500000, 750000, 1000000]
+#12: [10000, 50000, 100000, 250000, 500000, 750000, 950000]
+
+# top 3 bottom
+#1: [10000, 50000, 100000, 250000, 400000]
+#10: [10000, 50000, 100000, 250000, 500000, 750000]
+#15: [10000, 50000, 100000, 250000, 500000, 750000]
+
+# top 3 based on high depth
+# 2: [10000, 50000, 100000, 250000, 500000, 750000, 1000000, 1250000]
+# 7: [10000, 50000, 100000, 250000, 500000, 750000, 1000000, 1250000, 1500000, 1750000]
+# 9: [10000, 50000, 100000, 250000, 500000, 750000, 1000000, 1200000]
+
+
+for Nreads in [750000]:
     
     # 1. create new fastqs with N reads
     file_readers.save_pfastq_Nreads(reads_r1,reads_r2, Nreads)
@@ -59,7 +74,7 @@ for Nreads in [10000, 50000, 100000, 250000, 500000, 750000, 1000000, 1250000, 1
     #bdb_path = "/gpfs/commons/home/mgarbulowski/016_proj_shm/ref_dbs/GbBacU/all_seqs.fna"
     bdb_path = "/gpfs/commons/home/mgarbulowski/016_proj_shm/ref_dbs/nt_blast/nt_blast"
     out_path = path2 + "/" + samp + "_" + str(Nreads) + "_blastn_report.txt"
-    process_data.run_blastn(fa_path, bdb_path, out_path, nthreads=48, evalue=1e-6, max_ts=5, max_h=1)
+    process_data.run_blastn(fa_path, bdb_path, out_path, nthreads=32, evalue=1e-6, max_ts=5, max_h=1)
     
     
     os.remove(file1)

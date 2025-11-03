@@ -254,7 +254,20 @@ def classify(db_path, input_file, confidence=0.01, threads=8, min_hit_gr=2):
     output.columns = ['outcome', 'seqid', 'taxid', 'seqlen', 'kmers']
 
     return output
+
+def download_db(db_path, lib="human"):
+
+    classify_bin = os.path.join(current_dir + "/kraken2_src", "download-library") # localize bins
     
+    #k2 download-library --db db/ --library human
+    cmd = [classify_bin,
+            "--db",
+            db_path,
+            "--library human",
+            lib,]
+    
+    subprocess.call(cmd)
+
 def prepare_db(db_path, ref_path):
     """Builds db for kraken2.
 
