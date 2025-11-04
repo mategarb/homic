@@ -80,7 +80,7 @@ def trim_decon_pe(dbpath, file1, file2, adapt_seq_path, head_crop=19, crop=260, 
 
 
 
-def chop_decon_se(dbpath, file, adapt_seq_path, head_crop=10, min_quality=10, min_length=500, threads=32): # ont, SE
+def chop_decon_se(dbpath, file, min_quality=10, min_length=300, head_crop=10, threads=32): # ont, SE
     
     """Filtering with chopper and decontaminatig reads with kraken2.
 
@@ -98,41 +98,102 @@ def chop_decon_se(dbpath, file, adapt_seq_path, head_crop=10, min_quality=10, mi
         no output, files are saved
     """
     
-# 1. trimming
+    # 1. trimming
     if file[-2:] == "gz":
-        file2 = file.replace(".fastq.gz", "_chopped.fastq")
+        file2 = file.replace(".fastq.gz", "_chop.fastq")
         output = file.replace(".fastq.gz", "_k2") # the same folder where original files are
     else:
-        file2 = file.replace(".fastq", "_chopped.fastq")
+        file2 = file.replace(".fastq", "_chop.fastq")
         output = file.replace(".fastq", "_k2") # the same folder where original files are
     
     print("Chopping and filtering")
-    cmd = ["chopper",
-            "-q",
-            str(min_quality),
-            "-l",
-            str(min_length),
-            "--headcrop",
-            str(head_crop),
-            "-i",
-            file,
-            ">",
-            file2,] ## settings from here http://www.usadellab.org/cms/uploads/supplementary/Trimmomatic/TrimmomaticManual_V0.32.pdf
-    subprocess.call(cmd)
+    
+    with open(file2, "w") as out:
+        subprocess.call([
+            "chopper",
+            "-q", str(min_quality),
+            "-l", str(min_length),
+            "--headcrop", str(head_crop),
+            "-i", file
+        ], stdout=out)
+
 
     # 2. decontaminating
     print("Decontaminating reads")
 
-
-    
     decontaminate_single(db_path = dbpath, 
                                 input_file = file2,
                                 output = output,
                                 threads = threads)
-    os.remove(file2)
+    #os.remove(file2)
 
 
-def assemble_decon_se(path, dbpath, file, samp_id="no_id", threads=16, min_con_len = 500): # SE
+
+def run_cutadapt_ont(file, adapt_seq_path, times=1, error_rate=0.15, min_len=100, threads = 8): # ont, SE
+    
+    """Runs cutadapt and removes poly A from 3 prime and poly T from 5 prime.
+
+        Parameters
+        ----------
+        dbpath : string,
+            a path to the kraken2 db
+        file : string,
+            a path .fastq file
+        threads : string,
+            number of threads
+            
+        Returns
+        -------
+        no output, files are saved
+    """
+    
+    # cutadapt
+    if file[-2:] == "gz":
+        output = file.replace(".fastq.gz", "_ca") # the same folder where original files are
+    else:
+        output = file.replace(".fastq", "_ca") # the same folder where original files are
+
+    cmd = ["cutadapt",
+            "-a",
+            "A{10}",
+            "-a", # 3'
+            "file:" + adapt_seq_path,
+            "-g", # 5'
+            "T{10}",
+            "--times", 
+            str(times),
+            "--error-rate",
+            str(error_rate),
+            "--minimum-length",
+            str(min_len),
+            "--cores",
+            str(threads),
+            "-o",
+            output + ".fastq",
+            file,]
+    
+    subprocess.call(cmd)
+
+### function
+def subsample_fastq(fastq_path, N, seed=321):
+
+    if fastq_path[-2:] == "gz":
+        output = fastq_path.replace(".fastq.gz", "_" + str(N) + "_randReads.fastq.gz")
+    else:
+        output = fastq_path.replace(".fastq", "_" + str(N) + "_randReads.fastq")
+    
+    cmd = ["seqtk",
+            "sample",
+            "-s"+str(seed),
+            fastq_path,
+            str(N),
+            ">"]
+    
+    with open(output, "w") as out:
+        subprocess.call(cmd, stdout=out)
+
+
+def assemble_decon_se(path, dbpath, file, samp_id="no_id", threads=16, min_con_len = 500):
 
     """Assembling with megahit and decontaminatig contigs with kraken2.
 
