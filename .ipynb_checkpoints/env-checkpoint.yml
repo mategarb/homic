@@ -1,0 +1,15 @@
+name: homic
+channels:
+  - bioconda
+  - conda-forge
+  - defaults
+dependencies:
+  - biopython
+  - samtools
+  - trimmomatic
+  - chopper
+  - seqtk
+  - megahit
+  - bowtie2
+  - metabat2
+

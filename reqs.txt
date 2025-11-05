@@ -1,0 +1,14 @@
+numpy
+pandas
+numba
+scipy
+scikit-learn
+plotly
+matplotlib
+seaborn
+Bio
+ete3
+tensorflow[and-cuda]
+keras
+atropos
+biopython

@@ -78,8 +78,6 @@ def trim_decon_pe(dbpath, file1, file2, adapt_seq_path, head_crop=19, crop=260, 
     os.remove(file22)
 
 
-
-
 def chop_decon_se(dbpath, file, min_quality=10, min_length=300, head_crop=10, threads=32): # ont, SE
     
     """Filtering with chopper and decontaminatig reads with kraken2.
@@ -129,7 +127,7 @@ def chop_decon_se(dbpath, file, min_quality=10, min_length=300, head_crop=10, th
 
 
 
-def run_cutadapt_ont(file, adapt_seq_path, times=1, error_rate=0.15, min_len=100, threads = 8): # ont, SE
+def run_cutadapt_ont(file, adapt_seq_path, error_rate=0.15, min_len=100, threads = 8): # ont, SE
     
     """Runs cutadapt and removes poly A from 3 prime and poly T from 5 prime.
 
@@ -153,23 +151,22 @@ def run_cutadapt_ont(file, adapt_seq_path, times=1, error_rate=0.15, min_len=100
     else:
         output = file.replace(".fastq", "_ca") # the same folder where original files are
 
-    cmd = ["cutadapt",
+    cmd = ["atropos",
             "-a",
             "A{10}",
             "-a", # 3'
             "file:" + adapt_seq_path,
             "-g", # 5'
             "T{10}",
-            "--times", 
-            str(times),
             "--error-rate",
             str(error_rate),
             "--minimum-length",
             str(min_len),
-            "--cores",
+            "--threads",
             str(threads),
             "-o",
             output + ".fastq",
+            "-se",
             file,]
     
     subprocess.call(cmd)
