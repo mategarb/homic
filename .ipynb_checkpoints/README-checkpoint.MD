@@ -6,6 +6,17 @@ A python package for HOst-MICrobiome (homic) spatial analysis
 
 # Installation guide
 
+Install pip dependencies
+```bash
+pip install -r pip_reqs.txt
+```
+
+Install bioconda dependencies (warning: downgrades Python to 3.10)
+```bash
+. install_bioconda_deps.sh
+```
+
+Import homic
 ```python
 import sys
 sys.path.append('/path/to/the/package/folder/src')

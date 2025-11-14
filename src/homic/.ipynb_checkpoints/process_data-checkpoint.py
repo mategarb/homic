@@ -22,6 +22,48 @@ import glob
 from Bio import SeqIO
 from collections import Counter
 
+def filter_tso(file, tso_seq, threads=32): # illumina, PE
+
+
+    if file[-2:] == "gz":
+        output = file.replace(".fastq.gz", "_tso5end.fastq")
+    else:
+        output = file.replace(".fastq", "_tso5end.fastq")
+
+    cmd = ["atropos",
+            "trim",
+            "-g",
+            "^"+tso_seq,
+            "-o",
+            output,
+            "-se",
+            file,
+            "--discard-untrimmed",
+            "--threads",
+            str(threads)
+            ]
+
+    subprocess.call(cmd)
+
+    tso_seq_rc = tso_seq.translate(str.maketrans("ACGTacgt", "TGCAtgca"))[::-1]
+    
+    output2 = output.replace("_tso5end.fastq", "_tsoFiltered.fastq")
+    cmd2 = ["atropos",
+            "trim",
+            "-a",
+            tso_seq_rc+"$",
+            "-o",
+            output2,
+            "-se",
+            output,
+            "--discard-trimmed",
+            "--threads",
+            str(threads)
+            ]
+    
+    #os.remove(output)
+    subprocess.call(cmd2)
+
 def trim_decon_pe(dbpath, file1, file2, adapt_seq_path, head_crop=19, crop=260, threads=32): # illumina, PE
     
     """Trimming with trimmomatic and decontaminatig reads with kraken2.
@@ -78,7 +120,7 @@ def trim_decon_pe(dbpath, file1, file2, adapt_seq_path, head_crop=19, crop=260, 
     os.remove(file22)
 
 
-def chop_decon_se(dbpath, file, min_quality=10, min_length=300, head_crop=10, threads=32): # ont, SE
+def chop_decon_se(dbpath, file, min_quality=10, min_length=300, head_crop=20, tail_crop=20, threads=32, decontaminate = False): # ont, SE
     
     """Filtering with chopper and decontaminatig reads with kraken2.
 
@@ -98,11 +140,11 @@ def chop_decon_se(dbpath, file, min_quality=10, min_length=300, head_crop=10, th
     
     # 1. trimming
     if file[-2:] == "gz":
-        file2 = file.replace(".fastq.gz", "_chop.fastq")
-        output = file.replace(".fastq.gz", "_k2") # the same folder where original files are
+        file2 = file.replace(".fastq.gz", "_chopped.fastq")
+        output = file.replace(".fastq.gz", "_krakened") # the same folder where original files are
     else:
-        file2 = file.replace(".fastq", "_chop.fastq")
-        output = file.replace(".fastq", "_k2") # the same folder where original files are
+        file2 = file.replace(".fastq", "_chopped.fastq")
+        output = file.replace(".fastq", "_krakened") # the same folder where original files are
     
     print("Chopping and filtering")
     
@@ -112,22 +154,25 @@ def chop_decon_se(dbpath, file, min_quality=10, min_length=300, head_crop=10, th
             "-q", str(min_quality),
             "-l", str(min_length),
             "--headcrop", str(head_crop),
+            "--tailcrop", str(tail_crop),
+            "--threads",str(threads),
             "-i", file
         ], stdout=out)
 
 
     # 2. decontaminating
-    print("Decontaminating reads")
+    if decontaminate:
+        print("Decontaminating reads")
+    
+        decontaminate_single(db_path = dbpath, 
+                                    input_file = file2,
+                                    output = output,
+                                    threads = threads)
+        os.remove(file2)
 
-    decontaminate_single(db_path = dbpath, 
-                                input_file = file2,
-                                output = output,
-                                threads = threads)
-    #os.remove(file2)
 
 
-
-def run_cutadapt_ont(file, adapt_seq_path, error_rate=0.15, min_len=100, threads = 8): # ont, SE
+def run_atropos_se(file, seqtorem_path, seqtorem_rc_path, error_rate=0.15, threads = 16): # ont, SE
     
     """Runs cutadapt and removes poly A from 3 prime and poly T from 5 prime.
 
@@ -147,37 +192,114 @@ def run_cutadapt_ont(file, adapt_seq_path, error_rate=0.15, min_len=100, threads
     
     # cutadapt
     if file[-2:] == "gz":
-        output = file.replace(".fastq.gz", "_ca") # the same folder where original files are
+        output = file.replace(".fastq.gz", "_atroped") # the same folder where original files are
     else:
-        output = file.replace(".fastq", "_ca") # the same folder where original files are
+        output = file.replace(".fastq", "_atroped") # the same folder where original files are
 
     cmd = ["atropos",
+           "trim",
             "-a",
             "A{10}",
             "-a", # 3'
-            "file:" + adapt_seq_path,
+            "file:" + seqtorem_path,
             "-g", # 5'
             "T{10}",
+            "-g",
+            "file:" + seqtorem_rc_path,
             "--error-rate",
             str(error_rate),
-            "--minimum-length",
-            str(min_len),
             "--threads",
             str(threads),
+            "--quality-cutoff",
+            "20",
+            "--minimum-length",
+            "50",
+            "--trim-n",
             "-o",
             output + ".fastq",
             "-se",
-            file,]
+            file]
     
     subprocess.call(cmd)
 
+def run_atropos_pe(file1, file2, seqtorem_path, seqtorem_rc_path, nhead=25, ntail=50, minlen=51, minqual=10, error_rate=0.1, threads = 32): # ont, SE
+    
+    """Runs cutadapt and removes poly A from 3 prime and poly T from 5 prime.
+
+        Parameters
+        ----------
+        dbpath : string,
+            a path to the kraken2 db
+        file : string,
+            a path .fastq file
+        threads : string,
+            number of threads
+            
+        Returns
+        -------
+        no output, files are saved
+    """
+    
+    # cutadapt
+    if file1[-2:] == "gz":
+        output1 = file1.replace(".fastq.gz", "_atroped") # the same folder where original files are
+        output2 = file2.replace(".fastq.gz", "_atroped") # the same folder where original files are
+    else:
+        output1 = file1.replace(".fastq", "_atroped") # the same folder where original files are
+        output2 = file2.replace(".fastq", "_atroped") # the same folder where original files are
+    #a is 3 prime
+    #g is 5 prime
+    cmd = ["atropos",
+           "trim",
+            "-u",str(nhead),
+            "-u",str(-ntail),
+            "-U",str(nhead),
+            "-U",str(-ntail),
+            "-a", "file:" + seqtorem_path,
+            "-g", "file:" + seqtorem_rc_path,
+            "-A", "file:" + seqtorem_path,
+            "-G", "file:" + seqtorem_rc_path,
+            "-a", "file:" + seqtorem_rc_path,
+            "-g", "file:" + seqtorem_path,
+            "-A", "file:" + seqtorem_rc_path,
+            "-G", "file:" + seqtorem_path,
+            "-a", "A{10}$", # "A{10}$"
+            "-A", "A{10}$",
+            "-a", "T{10}$",# "T{10}$"
+            "-A", "T{10}$",
+            "-g", "A{10}",
+            "-G", "A{10}",
+            "-g", "T{10}",
+            "-G", "T{10}",
+            "--error-rate",
+            str(error_rate),
+            "--threads",
+            str(threads),
+            "--quality-cutoff",
+            str(minqual),
+            "--minimum-length",
+            str(minlen),
+            "--trim-n",
+            "-o",
+            output1 + "_1.fastq",
+            "-p",
+            output2 + "_2.fastq",
+            "-pe1",
+            file1,
+            "-pe2",
+            file2
+            ]
+    
+    subprocess.call(cmd)
+
+    
 ### function
 def subsample_fastq(fastq_path, N, seed=321):
 
     if fastq_path[-2:] == "gz":
-        output = fastq_path.replace(".fastq.gz", "_" + str(N) + "_randReads.fastq.gz")
+        output = fastq_path.replace(".fastq.gz", "_" + str(N) + "_subsampled.fastq.gz")
     else:
-        output = fastq_path.replace(".fastq", "_" + str(N) + "_randReads.fastq")
+        output = fastq_path.replace(".fastq", "_" + str(N) + "_subsampled.fastq")
     
     cmd = ["seqtk",
             "sample",
@@ -189,7 +311,58 @@ def subsample_fastq(fastq_path, N, seed=321):
     with open(output, "w") as out:
         subprocess.call(cmd, stdout=out)
 
+def assemble_decon_ont(path, dbpath, file, samp_id="no_id", threads=16, min_con_len = 500):
 
+    """Assembling with flye but works only with >2-3kb reads
+
+        Parameters
+        ----------
+        path : string,
+            a path to the folder with files
+        dbpath : string,
+            a path to the kraken2 db
+        file1 : string,
+            a path #1.fastq file
+        file2 : string,
+            a path #2.fastq file
+        threads : string,
+            number of threads
+            
+        Returns
+        -------
+        no output, files are saved under path
+    """
+
+    cmd = ["flye",
+            "--meta",
+            "--nano-raw",
+            file,
+            "--threads",
+            str(threads),
+            "--out-dir",
+            path + "/flye_assembly"
+            ]
+
+    shutil.rmtree(path + '/flye_assembly', ignore_errors=True)
+    
+    subprocess.call(cmd)
+
+    #os.remove(paths_r1)
+    #os.remove(paths_r2)
+
+    # 4. decontaminating II 
+    print("Decontaminating contigs")
+    file = path + "/flye_assembly/assembly.fasta"
+
+    output = file.replace("flye_assembly/assembly.fasta", "metagenome_contigs_" + samp_id)
+    decontaminate_single(db_path = dbpath, 
+                      input_file = file,
+                      output = output,
+                      threads = threads)
+    
+    shutil.rmtree(path + '/flye_assembly', ignore_errors=True)
+    print("Done!")
+    
 def assemble_decon_se(path, dbpath, file, samp_id="no_id", threads=16, min_con_len = 500):
 
     """Assembling with megahit and decontaminatig contigs with kraken2.
@@ -221,7 +394,7 @@ def assemble_decon_se(path, dbpath, file, samp_id="no_id", threads=16, min_con_l
             "--min-contig-len",
             str(min_con_len), # default 200
             "-t",
-            str(threads),]  # generic metagenomes settings, default
+            str(threads)]  # generic metagenomes settings, default
 
     shutil.rmtree(path + '/out_assembly', ignore_errors=True)
     
@@ -422,6 +595,171 @@ def bow_bat(assembly_path, file_1, file_2, out_dir, only_metabat=False, min_cont
             "--minContig", str(min_contig)
         ])
 
+def decontaminate_mm_se(file, mmi_file, ont_reads = True, threads=16): # bowtie + metabat
+
+    """Decontamination with minimap2. Assuming this is done prior: minimap2 -d GRCh38.mmi GRCh38.fa
+
+        Parameters
+        ----------
+        path : string,
+            a path to the folder with files
+        dbpath : string,
+            a path to the kraken2 db
+        file1 : string,
+            a path #1.fastq file
+        file2 : string,
+            a path #2.fastq file
+        threads : string,
+            number of threads
+            
+        Returns
+        -------
+        no output, files are saved under path
+    """
+
+        # cutadapt
+    if file[-2:] == "gz":
+        output = file.replace(".fastq.gz", "_aligned.sam") # the same folder where original files are
+    else:
+        output = file.replace(".fastq", "_aligned.sam") # the same folder where original files are
+
+
+
+    if ont_reads:
+        with open(output, "w") as out:
+            subprocess.run([
+                "minimap2",
+                "-ax", "map-ont",
+                "-t", str(threads),
+                mmi_file,
+                file
+            ], stdout=out)
+    else:
+        with open(output, "w") as out:
+            subprocess.run([
+                "minimap2",
+                "-ax", "sr",
+                "-t", str(threads),
+                mmi_file,
+                file
+            ], stdout=out)
+
+    
+    output2 = output.replace(".sam", ".bam") # the same folder where original files are    
+    # Convert SAM to BAM and sort
+    print("Converting SAM to sorted BAM...")
+    subprocess.run([
+        "samtools", "view", "-bS", output, "-o", output2
+    ])
+    
+    print("Filtering unmapped reads...")
+    output3 = output2.replace(".bam", "_unmapped.bam") # the same folder where original files are  
+    with open(output3, "w") as out:
+        subprocess.run([
+            "samtools", "view", "-b", "-f","4", "-F", "2304", output2
+        ], stdout=out)
+
+    # convert back to FASTQ
+    output4 = output3.replace("_unmapped.bam", "_unhosted.fastq") # the same folder where original files are  
+    with open(output4, "w") as out:
+        subprocess.run([
+            "samtools", "fastq", output3
+        ], stdout=out)
+        
+    os.remove(output)
+    os.remove(output2)
+    os.remove(output3)
+
+
+
+def decontaminate_mm_pe(file1, file2, ref_file, bwa = True, ont_reads = True, threads=32): # bowtie + metabat
+
+    """Decontamination with minimap2. Assuming this is done prior: minimap2 -d GRCh38.mmi GRCh38.fa
+
+        Parameters
+        ----------
+        path : string,
+            a path to the folder with files
+        dbpath : string,
+            a path to the kraken2 db
+        file1 : string,
+            a path #1.fastq file
+        file2 : string,
+            a path #2.fastq file
+        threads : string,
+            number of threads
+            
+        Returns
+        -------
+        no output, files are saved under path
+    """
+
+        # cutadapt
+    if file1[-2:] == "gz":
+        output = file1.replace("_1.fastq.gz", "_aligned.sam") # the same folder where original files are
+    else:
+        output = file1.replace("_1.fastq", "_aligned.sam") # the same folder where original files are
+
+    if bwa:
+        output2 = output.replace("_aligned.sam", "_bwa.bam")
+        with open(output, "w") as out:
+            subprocess.run([
+                "bwa",
+                "mem",
+                "-t", str(threads),
+                ref_file,
+                file1,
+                file2
+            ], stdout=out)
+
+    else:
+        output2 = output.replace("_aligned.sam", "_mm.bam")
+        if ont_reads:
+            with open(output, "w") as out:
+                subprocess.run([
+                    "minimap2",
+                    "-ax", "map-ont",
+                    "-t", str(threads),
+                    ref_file,
+                    file1,
+                    file2
+                ], stdout=out)
+        else:
+            with open(output, "w") as out:
+                subprocess.run([
+                    "minimap2",
+                    "-ax", "sr",
+                    "-t", str(threads),
+                    ref_file,
+                    file1,
+                    file2
+                ], stdout=out)
+
+    
+    # Convert SAM to BAM and sort
+    print("Converting SAM to sorted BAM...")
+    subprocess.run([
+        "samtools", "view", "-bS", output, "-o", output2
+    ])
+    
+    print("Filtering unmapped reads...")
+    output3 = output2.replace(".bam", "_unmapped.bam") # the same folder where original files are  
+    with open(output3, "w") as out:
+        subprocess.run([
+            "samtools", "view", "-b", "-f","4", "-F", "2304", output2
+        ], stdout=out)
+
+    # convert back to FASTQ
+    output4 = output3.replace("_unmapped.bam", "_unhosted.fastq") # the same folder where original files are  
+    with open(output4, "w") as out:
+        subprocess.run([
+            "samtools", "fastq", output3
+        ], stdout=out)
+        
+    os.remove(output)
+    os.remove(output2)
+    os.remove(output3)
+  
 
 def run_blastn(path_fa, path_db, path_out, nthreads=16, evalue=1e-6, max_ts=1, max_h=1, ofmt="6 qseqid sseqid pident length evalue bitscore score stitle"):
 

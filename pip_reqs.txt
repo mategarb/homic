@@ -1,5 +1,6 @@
 numpy
 pandas
+pysam
 numba
 scipy
 scikit-learn

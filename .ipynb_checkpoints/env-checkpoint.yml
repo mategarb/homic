@@ -4,12 +4,11 @@ channels:
   - conda-forge
   - defaults
 dependencies:
-  - biopython
   - samtools
   - trimmomatic
   - chopper
   - seqtk
   - megahit
-  - bowtie2
+  - minimap2
   - metabat2
-
+  - flye

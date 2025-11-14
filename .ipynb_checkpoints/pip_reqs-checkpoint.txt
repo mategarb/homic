@@ -1,5 +1,6 @@
 numpy
 pandas
+pysam
 numba
 scipy
 scikit-learn
@@ -10,3 +11,5 @@ Bio
 ete3
 tensorflow[and-cuda]
 keras
+atropos
+biopython
