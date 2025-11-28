@@ -418,6 +418,45 @@ def decontaminate_single(db_path, input_file, output, confidence=0.5, threads=8,
     
     subprocess.call(cmd, stdout=subprocess.DEVNULL)
 
+def taxid_to_taxainfo(krk_file):
+    krk_out =  pd.read_csv(krk_file)
+    ncbi = ete3.NCBITaxa()
+    
+    
+    krk_out = krk_out[krk_out["outcome"] == "C"]
+    
+    taxids = ncbi.get_taxid_translator(krk_out["taxid"])
+    taxidsf = sum(([v] if not isinstance(v, list) else v for v in taxids.keys()), [])
+    taxids_dict = dict(zip(taxidsf, taxids.values())) ## swapping values with keys
+    taxon_id = set(taxidsf)
+    
+    lineage_df = {}
+    for tmp_taxid in taxon_id:
+        if tmp_taxid != 0:
+            tmp_lineage = pd.Series({rank : taxon
+                                        for taxon, rank in ncbi.get_rank(
+                                            ncbi.get_lineage(tmp_taxid)).items()
+                                    })
+            tmp_lineage = pd.Series(index=tmp_lineage.index,
+                                    data =ncbi.translate_to_names(tmp_lineage))
+            
+            tmp_lineage.name = tmp_taxid
+            tmp_lineage.fillna(value='unassigned')
+            lineage_df[tmp_taxid] = tmp_lineage
+    
+        else:
+            nms = ['no rank', 'superkingdom', 'phylum', 'class', 'family', 'genus', 'kingdom', 'species', 'order']
+            lineage_df[tmp_taxid] = pd.DataFrame(['unassigned'] * len(nms), index=nms)
+        
+    tmp_res = list(map(lineage_df.get, krk_out["taxid"].tolist()))
+    
+    lineage_df_all = pd.concat(tmp_res, axis=1, ignore_index=True)
+    lineage_df_all = lineage_df_all.loc[['superkingdom', 'phylum', 'class', 'order', 'family', 'genus','species']]
+    lineage_df_all = lineage_df_all.T
+    lineage_df_all = lineage_df_all.fillna('unassigned')
+    lineage_df_all = lineage_df_all.iloc[:, ::-1] # reversing the order
+    return lineage_df_all
+
 def evaluate_kraken(krk_path, gs_path):
 
     """Evaluates kraken2 prediction with gold standard.

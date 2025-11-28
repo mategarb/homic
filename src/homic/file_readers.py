@@ -213,29 +213,30 @@ def save_pfastq_Nreads(path1, path2, Nreads):
     
     path3 = path1.replace(".fastq", "")
     path3 = path3 + "_" + str(Nreads) + ".fastq"
-    n = len(read_lines1)
+    n1 = len(read_lines1)
     
-    with open(path3, 'a+') as f:
-        for i in range(n):
-            print(header_lines1[i].strip(), file = f) # fastq header
-            print(read_lines1[i], file = f) # reads
-            print('+', file = f) # strand
-            print(qual_lines1[i].strip(), file = f) # quality sequence
-###
+    with open(path3, 'a+') as f1:
+        for i in range(n1):
+            print(header_lines1[i].strip(), file = f1) # fastq header
+            print(read_lines1[i], file = f1) # reads
+            print('+', file = f1) # strand
+            print(qual_lines1[i].strip(), file = f1) # quality sequence
+    ###
     header_lines2 = [header_lines2[i] for i in inds]
     read_lines2 = [read_lines2[i] for i in inds]
     qual_lines2 = [qual_lines2[i] for i in inds]
     
     path4 = path2.replace(".fastq", "")
     path4 = path4 + "_" + str(Nreads) + ".fastq"
-    n = len(read_lines2)
     
-    with open(path4, 'a+') as f:
-        for i in range(n):
-            print(header_lines2[i].strip(), file = f) # fastq header
-            print(read_lines2[i], file = f) # reads
-            print('+', file = f) # strand
-            print(qual_lines2[i].strip(), file = f) # quality sequence    
+    n2 = len(read_lines2)
+    
+    with open(path4, 'a+') as f2:
+        for i in range(n2):
+            print(header_lines2[i].strip(), file = f2) # fastq header
+            print(read_lines2[i], file = f2) # reads
+            print('+', file = f2) # strand
+            print(qual_lines2[i].strip(), file = f2) # quality sequence    
 
 #####################################################################################################
 #####################################################################################################

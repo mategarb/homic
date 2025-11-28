@@ -172,7 +172,7 @@ def chop_decon_se(dbpath, file, min_quality=10, min_length=300, head_crop=20, ta
 
 
 
-def run_atropos_se(file, seqtorem_path, seqtorem_rc_path, error_rate=0.15, threads = 16): # ont, SE
+def run_atropos_se(file, seqtorem_path, seqtorem_rc_path, nhead=10, ntail=10, minlen=30, maxlen=2000, minqual=10, error_rate=0.1, threads = 32): # ont, SE
     
     """Runs cutadapt and removes poly A from 3 prime and poly T from 5 prime.
 
@@ -197,24 +197,32 @@ def run_atropos_se(file, seqtorem_path, seqtorem_rc_path, error_rate=0.15, threa
         output = file.replace(".fastq", "_atroped") # the same folder where original files are
 
     cmd = ["atropos",
-           "trim",
-            "-a",
-            "A{10}",
-            "-a", # 3'
-            "file:" + seqtorem_path,
-            "-g", # 5'
-            "T{10}",
-            "-g",
-            "file:" + seqtorem_rc_path,
+            "trim",
+            "-u",str(nhead),
+            "-u",str(-ntail),
+            "-a", "file:" + seqtorem_path,
+            "-g", "file:" + seqtorem_rc_path,
+            "-a", "file:" + seqtorem_rc_path,
+            "-g", "file:" + seqtorem_path,
+            "-a", "A{10}$", # "A{10}$"
+            "-a", "T{10}$",# "T{10}$"
+            "-g", "A{10}",
+            "-g", "T{10}",
             "--error-rate",
             str(error_rate),
             "--threads",
             str(threads),
             "--quality-cutoff",
-            "20",
+            str(minqual),
             "--minimum-length",
-            "50",
+            str(minlen),
+            "--maximum-length",
+            str(maxlen),
+            "--overlap",
+            "10", # based on https://www.biorxiv.org/content/10.1101/2025.08.08.669394v1.full.pdf
             "--trim-n",
+            "--report-file",
+            "stats.txt",
             "-o",
             output + ".fastq",
             "-se",
@@ -280,6 +288,8 @@ def run_atropos_pe(file1, file2, seqtorem_path, seqtorem_rc_path, nhead=25, ntai
             "--minimum-length",
             str(minlen),
             "--trim-n",
+            "--report-file",
+            "stats.txt",
             "-o",
             output1 + "_1.fastq",
             "-p",
@@ -363,7 +373,7 @@ def assemble_decon_ont(path, dbpath, file, samp_id="no_id", threads=16, min_con_
     shutil.rmtree(path + '/flye_assembly', ignore_errors=True)
     print("Done!")
     
-def assemble_decon_se(path, dbpath, file, samp_id="no_id", threads=16, min_con_len = 500):
+def assemble_decon_se(path, db_path, file, samp_id="no_id", threads=16, min_con_len = 500):
 
     """Assembling with megahit and decontaminatig contigs with kraken2.
 
@@ -408,7 +418,7 @@ def assemble_decon_se(path, dbpath, file, samp_id="no_id", threads=16, min_con_l
     file = path + "/out_assembly/final.contigs.fa"
 
     output = file.replace("out_assembly/final.contigs.fa", "metagenome_contigs_" + samp_id)
-    decontaminate_single(db_path = dbpath, 
+    decontaminate_single(db_path = db_path, 
                       input_file = file,
                       output = output,
                       threads = threads)
@@ -595,26 +605,24 @@ def bow_bat(assembly_path, file_1, file_2, out_dir, only_metabat=False, min_cont
             "--minContig", str(min_contig)
         ])
 
-def decontaminate_mm_se(file, mmi_file, ont_reads = True, threads=16): # bowtie + metabat
+def dehostaminate_se(file, ref_file, method = "bwa", threads=16):
 
-    """Decontamination with minimap2. Assuming this is done prior: minimap2 -d GRCh38.mmi GRCh38.fa
+    """Decontamination with selected method
 
         Parameters
         ----------
-        path : string,
-            a path to the folder with files
-        dbpath : string,
+        file : string,
+            a path to the .fastq file
+        ref_file : string,
             a path to the kraken2 db
-        file1 : string,
-            a path #1.fastq file
-        file2 : string,
-            a path #2.fastq file
+        method : string,
+            a given method, "bwa" (default), "bowtie2", "mm2-ont" or "mm2-sr"
         threads : string,
             number of threads
             
         Returns
         -------
-        no output, files are saved under path
+        files are saved under extended names of the file
     """
 
         # cutadapt
@@ -624,28 +632,55 @@ def decontaminate_mm_se(file, mmi_file, ont_reads = True, threads=16): # bowtie 
         output = file.replace(".fastq", "_aligned.sam") # the same folder where original files are
 
 
-
-    if ont_reads:
+    if method == "bwa":
+        output2 = output.replace("_aligned.sam", "_bwa.bam")
+        with open(output, "w") as out:
+            subprocess.run([
+                "bwa",
+                "mem",
+                "-k", "15",
+                "-t", str(threads),
+                ref_file,
+                file,
+            ], stdout=out)
+    elif method == "bowtie2":
+        output2 = output.replace("_aligned.sam", "_bowtie2.bam")
+        with open(output, "w") as out:
+            subprocess.run([
+                "bowtie2",
+                "--very-sensitive", # recommended for decontamination, e.g. KneadData uses it and some other tools
+                "--threads", str(threads),
+                "-x",
+                ref_file,
+                "-U",
+                file
+            ], stdout=out)
+    elif method == "mm2-ont":
+        output2 = output.replace("_aligned.sam", "_mm2-ont.bam")
         with open(output, "w") as out:
             subprocess.run([
                 "minimap2",
                 "-ax", "map-ont",
                 "-t", str(threads),
-                mmi_file,
+                ref_file,
                 file
             ], stdout=out)
-    else:
+    elif method == "mm2-sr":
+        output2 = output.replace("_aligned.sam", "_mm2-sr.bam")
         with open(output, "w") as out:
             subprocess.run([
                 "minimap2",
                 "-ax", "sr",
                 "-t", str(threads),
-                mmi_file,
+                ref_file,
                 file
             ], stdout=out)
+    else:
+        print("Given method is not supported")
+        return
 
     
-    output2 = output.replace(".sam", ".bam") # the same folder where original files are    
+    #output2 = output.replace(".sam", ".bam") # the same folder where original files are    
     # Convert SAM to BAM and sort
     print("Converting SAM to sorted BAM...")
     subprocess.run([
@@ -672,7 +707,7 @@ def decontaminate_mm_se(file, mmi_file, ont_reads = True, threads=16): # bowtie 
 
 
 
-def decontaminate_mm_pe(file1, file2, ref_file, bwa = True, ont_reads = True, threads=32): # bowtie + metabat
+def dehostaminate_pe(file1, file2, ref_file, bwa = True, ont_reads = True, threads=32): # bowtie + metabat
 
     """Decontamination with minimap2. Assuming this is done prior: minimap2 -d GRCh38.mmi GRCh38.fa
 
@@ -696,9 +731,9 @@ def decontaminate_mm_pe(file1, file2, ref_file, bwa = True, ont_reads = True, th
 
         # cutadapt
     if file1[-2:] == "gz":
-        output = file1.replace("_1.fastq.gz", "_aligned.sam") # the same folder where original files are
+        output = file1.replace(".fastq.gz", "_aligned.sam") # the same folder where original files are
     else:
-        output = file1.replace("_1.fastq", "_aligned.sam") # the same folder where original files are
+        output = file1.replace(".fastq", "_aligned.sam") # the same folder where original files are
 
     if bwa:
         output2 = output.replace("_aligned.sam", "_bwa.bam")
@@ -713,7 +748,7 @@ def decontaminate_mm_pe(file1, file2, ref_file, bwa = True, ont_reads = True, th
             ], stdout=out)
 
     else:
-        output2 = output.replace("_aligned.sam", "_mm.bam")
+        output2 = output.replace("_aligned.sam", "_mm2.bam")
         if ont_reads:
             with open(output, "w") as out:
                 subprocess.run([
@@ -882,7 +917,7 @@ def select_taxa(path_blast, samps_ids, taxa_level="species", db = "nt"):
 
 
     
-def read_n_clean_blastn(path_blast, db = "nt", top_hits = True, evalue = 1e-100, pident=0.98, drop_sp = True, drop_uncultured = True, drop_bacterium=True, drop_virus=True, best_unique = False):
+def read_n_clean_blastn(path_blast, db = "nt", top_hits = True, evalue = 1e-200, pident=0.99, drop_sp = True, drop_uncultured = True, drop_bacterium=True, drop_virus=True, best_unique = False):
 
     """Reads and cleans output from blastn.
 

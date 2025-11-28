@@ -9,6 +9,7 @@ import matplotlib.colors as mcolors
 import seaborn as sns
 import pandas as pd
 from collections import Counter
+    
 #####################################################################################################
 #####################################################################################################
 #####################################################################################################
@@ -260,48 +261,181 @@ def bray_curtis_bench(braycurtis_d, taxa_orders, path):
         
     plt.savefig(path + fname + '_bray-curtis.png')
 
+
+# Function to reorder dataframe so 'Other' is at the bottom
+def reorder_other_first(df):
+    species_order = ['Other'] + [s for s in df.index if s != 'Other']
+    return df.reindex(species_order)
+
+
 def relative_abundance_double(data1, data2, name1, name2):
-    # plot data in stack manner of bar type
+
+    
+    # Combine all species from both datasets
+    all_species = list(set(data1.index) | set(data2.index))
+    
+    # Generate a color palette (excluding 'Other')
+    palette = sns.color_palette('tab20', n_colors=len(all_species))
+    color_dict = {species: color for species, color in zip(all_species, palette)}
+    
+    # Set 'Other' to dim gray
+    color_dict['Other'] = 'dimgray'
+    
+    
+    # Reorder datasets
+    data1_reordered = reorder_other_first(data1)
+    data2_reordered = reorder_other_first(data2)
+    
+    # Create figure and axes
     fig, axes = plt.subplots(1, 2, figsize=(12, 5))
     
-    data1.T.plot(
+    # Plot first dataset
+    data1_reordered.T.plot(
         kind='bar',
         stacked=True,
         ax=axes[0],
-        colormap='tab20'
+        color=[color_dict[species] for species in data1_reordered.index]
     )
     axes[0].set_title(name1)
     axes[0].set_ylabel('Relative abundance')
     axes[0].set_xticks([])
-    for patch, label in zip(axes[0].patches, data1.index):
-        if label == 'Other':
-            patch.set_facecolor('dimgray')
-    axes[0].legend(bbox_to_anchor=(1.05, 1), loc='upper left')
-            
-    data2.T.plot(
+    
+    # Clean up spines
+    axes[0].spines['top'].set_visible(False)
+    axes[0].spines['right'].set_visible(False)
+    axes[0].spines['left'].set_visible(True)
+    axes[0].spines['bottom'].set_visible(False)
+    axes[0].tick_params(left=True, bottom=False, labelleft=True, labelbottom=False)
+    
+    # Reverse legend order to match stack
+    handles, labels = axes[0].get_legend_handles_labels()
+    axes[0].legend(handles[::-1], labels[::-1], bbox_to_anchor=(1.05, 1), loc='upper left')
+    
+    # Plot second dataset
+    data2_reordered.T.plot(
         kind='bar',
         stacked=True,
         ax=axes[1],
-        colormap='tab20'
+        color=[color_dict[species] for species in data2_reordered.index]
     )
     axes[1].set_title(name2)
     axes[1].set_ylabel('Relative abundance')
     axes[1].set_xticks([])
-    for patch, label in zip(axes[1].patches, data2.index):
-        if label == 'Other':
-            patch.set_facecolor('dimgray')
-    axes[1].legend(bbox_to_anchor=(1.05, 1), loc='upper left')
     
+    # Clean up spines
+    axes[1].spines['top'].set_visible(False)
+    axes[1].spines['right'].set_visible(False)
+    axes[1].spines['left'].set_visible(True)
+    axes[1].spines['bottom'].set_visible(False)
+    axes[1].tick_params(left=True, bottom=False, labelleft=True, labelbottom=False)
+    
+    # Reverse legend order
+    handles, labels = axes[1].get_legend_handles_labels()
+    axes[1].legend(handles[::-1], labels[::-1], bbox_to_anchor=(1.05, 1), loc='upper left')
+    
+    # Add subplot labels
     axes[0].text(-0.1, 1.05, "A", transform=axes[0].transAxes,
-            fontsize=16, fontweight='bold', va='top', ha='right')
+                 fontsize=16, fontweight='bold', va='top', ha='right')
     axes[1].text(-0.1, 1.05, "B", transform=axes[1].transAxes,
-            fontsize=16, fontweight='bold', va='top', ha='right')
-    
+                 fontsize=16, fontweight='bold', va='top', ha='right')
     
     plt.tight_layout()
     plt.show()
+
     return fig
 
+def relative_abundance_four(data_list, bar_subtitles, common_legend=True, clegend_nrows=3):
+    
+    """
+    Plot four stacked bar charts in a single row with:
+    - 'Other' at bottom
+    - legends (common or individual)
+    - custom x-tick labels under each bar (rotated 45°)
+    - subplots A and B labeled
+    - y-axis goes to 1
+    - bigger y-axis tick labels
+    - polished spacing
+    - common legend wrapped in 3 rows
+    """
+    # combine all species
+    all_species = list(set().union(*(df.index for df in data_list)))
+    
+    palette1 = sns.color_palette("tab20", 20)
+    palette2 = sns.color_palette("tab20b", 20)
+
+    palette = palette1 + palette2
+
+    # Map species to colors
+    color_dict = {species: palette[i] for i, species in enumerate(all_species)}
+
+    # Optional: make 'Other' always gray
+    color_dict['Other'] = '#ededed'
+    
+    
+    data_list = [reorder_other_first(df) for df in data_list]
+
+    fig, axes = plt.subplots(1, 4, figsize=(20, 14), sharey=True)
+    
+    for i, (df, subtitle, ax) in enumerate(zip(data_list, bar_subtitles, axes)):
+
+        df.T.plot(kind='bar',
+                  stacked=True,
+                  ax=ax,
+                  color=[color_dict[sp] for sp in df.index],
+                  width=0.5,
+                  legend=False)
+        
+        # Replace x-tick labels with given subtitle
+        ax.set_xticks(range(df.shape[1]))
+        ax.set_xticklabels([subtitle]*df.shape[1], rotation=45, ha='right', fontsize=16)
+        
+        # Force y-axis from 0 to 1
+        ax.set_ylim(0, 1)
+        
+        # Increase y-axis tick label font size
+        ax.tick_params(axis='y', labelsize=16)
+        
+        # Y-axis label only for first subplot
+        if i == 0:
+            ax.set_ylabel('Relative abundance', fontsize=16)
+        else:
+            ax.set_ylabel('')
+        
+        # Clean spines
+        ax.spines['top'].set_visible(False)
+        ax.spines['right'].set_visible(False)
+        ax.spines['left'].set_visible(True)
+        ax.spines['bottom'].set_visible(True)
+        
+        # Individual legend if common_legend is False
+        if not common_legend:
+            handles = [plt.Rectangle((0,0),1,1,color=color_dict[sp]) for sp in df.index]
+            ax.legend(handles[::-1], df.index[::-1], bbox_to_anchor=(1.05,1),
+                      loc='upper left', fontsize=16)
+    
+    # add common legend if requested
+    if common_legend:
+        # sort alphabetically
+        labels = sorted(all_species, reverse=True)
+        handles = [plt.Rectangle((0,0),1,1,color=color_dict[sp]) for sp in labels]
+
+        # Wrap legend in N rows
+        ncol = len(all_species) // clegend_nrows + (len(all_species) % clegend_nrows > 0)
+
+        fig.legend(handles[::-1], labels[::-1], loc='lower center',
+                   ncol=ncol, fontsize=16, frameon=False, bbox_to_anchor=(0.5, -0.1), borderaxespad=0)
+        plt.tight_layout(rect=[0,0.15,1,1])  # leave space at bottom
+
+    else:
+        plt.tight_layout()
+    
+    axes[0].text(-0.15, 1.05, "A", transform=axes[0].transAxes,
+                 fontsize=20, fontweight='bold', va='top', ha='right')
+    axes[2].text(-0.15, 1.05, "B", transform=axes[2].transAxes,
+                 fontsize=20, fontweight='bold', va='top', ha='right')
+    plt.subplots_adjust(left=0.05, right=0.95, top=0.95, bottom=0.2)
+    plt.show()
+    return fig
 
 
 def relative_abundance_single(data, data_name, thr = 0.01, ntop = 10):
