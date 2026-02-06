@@ -38,7 +38,7 @@ import gzip
 os.environ["PATH"] = "/gpfs/commons/home/mgarbulowski/ncbi-blast-2.16.0+/bin:" + os.environ["PATH"]
 
 #### define paths
-n = 6 ## no of file to run
+n = 12 ## no of file to run
 path = "/gpfs/commons/home/mgarbulowski/016_proj_shm/metagenomes_lib/saturation_analysis" + str(n)
 db_path = "/gpfs/commons/home/mgarbulowski/016_proj_shm/ref_dbs/kraken/human_hg38"
 ref_file = "/gpfs/commons/home/mgarbulowski/016_proj_shm/references/GRCh38.fna"
@@ -48,7 +48,7 @@ fasta_path = main_path + "dna_fragments.fa"
 fasta_rc_path = main_path + "dna_fragments_rc.fa"
 
 #### samples id 
-all_samps = ["KP013", "KP027", "KP013", "KP026", "KP035", "KP012"] # all batches x3
+all_samps = ["KP003", "KP027", "KP013", "KP026", "KP035", "KP012", "KP010", "KP052", "KP049","KP040","KP048","KP005"] # all batches x3
 
 #all_samps = ["KP003","KP004","KP008","KP010","KP011","KP021","KP037","KP041","KP049","KP052"]# batch 2 + 4
 
@@ -107,7 +107,9 @@ if True:
 file1 = reads_r1.replace(".fastq", "_atroped_1.fastq")
 file2 = reads_r2.replace(".fastq", "_atroped_2.fastq")
 
-reads_Ns = [10000, 50000, 100000, 500000, 750000, 1000000, 1500000, 2000000, 2500000, 3000000, 3500000, 4000000, 5000000, 6000000,7000000,8000000,9000000,10000000]
+reads_Ns = [10000, 50000, 100000, 500000, 750000, 1000000, 1500000, 2000000, 2500000, 3000000, 3500000, 4000000, 4500000, 5000000, 5500000, 6000000]
+
+#reads_Ns = [4500000, 5000000, 5500000, 6000000]
 #reads_Ns = [750000] # remember it is x2, cuase it takes N from R1 + N from R2
 
 for Nreads in reads_Ns:

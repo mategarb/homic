@@ -174,7 +174,7 @@ def chop_decon_se(dbpath, file, min_quality=10, min_length=300, head_crop=20, ta
 
 def run_atropos_se(file, seqtorem_path, seqtorem_rc_path, nhead=10, ntail=10, minlen=30, maxlen=2000, minqual=10, error_rate=0.1, threads = 32): # ont, SE
     
-    """Runs cutadapt and removes poly A from 3 prime and poly T from 5 prime.
+    """Runs cutadapt and removes poly A from 3 prime and poly T from 5 prime. Adjusted for ONT data.
 
         Parameters
         ----------
@@ -204,12 +204,14 @@ def run_atropos_se(file, seqtorem_path, seqtorem_rc_path, nhead=10, ntail=10, mi
             "-g", "file:" + seqtorem_rc_path,
             "-a", "file:" + seqtorem_rc_path,
             "-g", "file:" + seqtorem_path,
-            "-a", "A{10}$", # "A{10}$"
-            "-a", "T{10}$",# "T{10}$"
-            "-g", "A{10}",
-            "-g", "T{10}",
+            "-a", "A{100}$", # "A{10}$"
+            "-a", "T{100}$",# "T{10}$"
+            "-g", "A{100}",
+            "-g", "T{100}",
             "--error-rate",
             str(error_rate),
+            "--insert-match-error-rate",
+            "0.25",
             "--threads",
             str(threads),
             "--quality-cutoff",
@@ -219,10 +221,12 @@ def run_atropos_se(file, seqtorem_path, seqtorem_rc_path, nhead=10, ntail=10, mi
             "--maximum-length",
             str(maxlen),
             "--overlap",
-            "10", # based on https://www.biorxiv.org/content/10.1101/2025.08.08.669394v1.full.pdf
+            "5", # 10 is based on https://www.biorxiv.org/content/10.1101/2025.08.08.669394v1.full.pdf
             "--trim-n",
-            "--report-file",
-            "stats.txt",
+            "--times",
+            "4",
+            #"--report-file",
+            #"stats.txt",
             "-o",
             output + ".fastq",
             "-se",
@@ -230,7 +234,7 @@ def run_atropos_se(file, seqtorem_path, seqtorem_rc_path, nhead=10, ntail=10, mi
     
     subprocess.call(cmd)
 
-def run_atropos_pe(file1, file2, seqtorem_path, seqtorem_rc_path, nhead=25, ntail=50, minlen=51, minqual=10, error_rate=0.1, threads = 32): # ont, SE
+def run_atropos_pe(file1, file2, seqtorem_path, seqtorem_rc_path, nhead=20, ntail=10, minlen=50, minqual=20, error_rate=0.1, threads = 32): # ont, SE
     
     """Runs cutadapt and removes poly A from 3 prime and poly T from 5 prime.
 
@@ -288,8 +292,8 @@ def run_atropos_pe(file1, file2, seqtorem_path, seqtorem_rc_path, nhead=25, ntai
             "--minimum-length",
             str(minlen),
             "--trim-n",
-            "--report-file",
-            "stats.txt",
+            #"--report-file",
+            #"stats.txt",
             "-o",
             output1 + "_1.fastq",
             "-p",
@@ -639,10 +643,24 @@ def dehostaminate_se(file, ref_file, method = "bwa", threads=16):
                 "bwa",
                 "mem",
                 "-k", "15",
+                "-T", "20",
+                "-B", "3",
+                "-O", "4",
+                "-E", "1",
                 "-t", str(threads),
                 ref_file,
                 file,
             ], stdout=out)
+    elif method == "bwa-def":
+        output2 = output.replace("_aligned.sam", "_bwa-def.bam")
+        with open(output, "w") as out:
+            subprocess.run([
+                "bwa",
+                "mem",
+                "-t", str(threads),
+                ref_file,
+                file,
+            ], stdout=out)        
     elif method == "bowtie2":
         output2 = output.replace("_aligned.sam", "_bowtie2.bam")
         with open(output, "w") as out:
@@ -661,6 +679,19 @@ def dehostaminate_se(file, ref_file, method = "bwa", threads=16):
             subprocess.run([
                 "minimap2",
                 "-ax", "map-ont",
+                "--eqx",
+                "-N","100", # https://github.com/mckellardw/slide_snake/blob/main/rules/ont/2b_minimap2_transcriptome.smk
+                "-t", str(threads),
+                ref_file,
+                file
+            ], stdout=out)
+    elif method == "mm2-splice":
+        output2 = output.replace("_aligned.sam", "_mm2-splice.bam")
+        with open(output, "w") as out:
+            subprocess.run([
+                "minimap2",
+                "-ax", "splice",
+                "-uf",
                 "-t", str(threads),
                 ref_file,
                 file
@@ -707,7 +738,7 @@ def dehostaminate_se(file, ref_file, method = "bwa", threads=16):
 
 
 
-def dehostaminate_pe(file1, file2, ref_file, bwa = True, ont_reads = True, threads=32): # bowtie + metabat
+def dehostaminate_pe(file1, file2, ref_file, method = "bwa", threads=32): # bowtie + metabat
 
     """Decontamination with minimap2. Assuming this is done prior: minimap2 -d GRCh38.mmi GRCh38.fa
 
@@ -735,7 +766,7 @@ def dehostaminate_pe(file1, file2, ref_file, bwa = True, ont_reads = True, threa
     else:
         output = file1.replace(".fastq", "_aligned.sam") # the same folder where original files are
 
-    if bwa:
+    if method == "bwa":
         output2 = output.replace("_aligned.sam", "_bwa.bam")
         with open(output, "w") as out:
             subprocess.run([
@@ -746,29 +777,32 @@ def dehostaminate_pe(file1, file2, ref_file, bwa = True, ont_reads = True, threa
                 file1,
                 file2
             ], stdout=out)
-
+    elif method == "mm2-ont":
+        output2 = output.replace("_aligned.sam", "_mm2-ont.bam")
+        with open(output, "w") as out:
+            subprocess.run([
+                "minimap2",
+                "-ax", "map-ont",
+                "-t", str(threads),
+                ref_file,
+                file1,
+                file2
+            ], stdout=out)
+    elif method == "mm2-sr":
+        output2 = output.replace("_aligned.sam", "_mm2-sr.bam")
+        with open(output, "w") as out:
+            subprocess.run([
+                "minimap2",
+                "-ax", "sr",
+                "-t", str(threads),
+                ref_file,
+                file1,
+                file2
+            ], stdout=out)
     else:
-        output2 = output.replace("_aligned.sam", "_mm2.bam")
-        if ont_reads:
-            with open(output, "w") as out:
-                subprocess.run([
-                    "minimap2",
-                    "-ax", "map-ont",
-                    "-t", str(threads),
-                    ref_file,
-                    file1,
-                    file2
-                ], stdout=out)
-        else:
-            with open(output, "w") as out:
-                subprocess.run([
-                    "minimap2",
-                    "-ax", "sr",
-                    "-t", str(threads),
-                    ref_file,
-                    file1,
-                    file2
-                ], stdout=out)
+        print("Given method is not supported")
+        return
+
 
     
     # Convert SAM to BAM and sort
@@ -1068,7 +1102,141 @@ def jknife2(taxa_list, m): # source: https://palaeo-electronica.org/2011_1/238/e
 
     return jk2, S_obs, Q1, Q2
 
-    
+
+def goods_coverage(taxa_series):
+    """
+    Compute Good's coverage from a vector of taxonomic assignments.
+
+    Parameters
+    ----------
+    taxa_series : pandas Series
+        A column like df["species"] or df["OTU"]
+
+    Returns
+    -------
+    coverage : float
+        Good's coverage estimate
+    F1 : int
+        Number of singletons
+    N : int
+        Total number of reads
+    """
+    counts = taxa_series.value_counts()
+    F1 = (counts == 1).sum()
+    N = counts.sum()
+
+    coverage = 1 - (F1 / N)
+
+    return coverage, F1, N
+
+import pandas as pd
+import numpy as np
+
+def species_richness_table(
+    samp_list, reads_nos, path_in,
+    evalue=1e-200, pident=0.99, taxa="species",
+    tail_points=4, slope_thresh=0.00002
+):
+    """
+    Compute Good's coverage, Chao1 ratio, and tail slope for each sample.
+    Return a table with saturation flags.
+
+    Parameters
+    ----------
+    samp_list : list
+        List of sample names.
+    reads_nos : dict
+        Dictionary of sample -> list of subsample sizes.
+    path_in : str
+        Path to BLASTN outputs.
+    evalue : float
+        E-value cutoff for BLASTN filtering.
+    pident : float
+        Percent identity cutoff for BLASTN filtering.
+    taxa : str
+        Column name for taxa (species/OTU).
+    tail_points : int
+        Number of last points to compute tail slope.
+    slope_thresh : float
+        Threshold slope to consider the curve saturated.
+
+    Returns
+    -------
+    df_table : pd.DataFrame
+        Table with saturation metrics and flags.
+    """
+
+    data = []
+
+    for samp in samp_list:
+        reads_n = reads_nos[samp]
+        species_num = []
+        chao_all = []
+        coverage_all = []
+
+        # Collect data at all subsample depths
+        for n in reads_n:
+            path_blast = f"{path_in}{samp}/{samp}_{n}_blastn_report.txt"
+            df = read_n_clean_blastn(path_blast, evalue=evalue, pident=pident)
+
+            species_num.append(len(set(df[taxa])))
+            chao_all.append(chao_idx(df[taxa])[0])
+            cov, F1, N = goods_coverage(df[taxa])
+            coverage_all.append(cov)
+
+        # Last point metrics
+        final_cov = coverage_all[-1]
+        final_chao_ratio = species_num[-1] / chao_all[-1] if chao_all[-1] > 0 else np.nan
+
+        # Tail slope: linear fit of last `tail_points` points
+        last_reads = np.multiply(reads_n[-tail_points:], 2)
+        last_species = species_num[-tail_points:]
+        # slope = ΔS / ΔN (linear regression)
+        if len(last_reads) >= 2:
+            slope = np.polyfit(last_reads, last_species, 1)[0]
+        else:
+            slope = np.nan  # not enough points
+
+        # Saturation flags
+        cov_flag = "Saturated" if final_cov > 0.996 else ("Almost" if final_cov > 0.95 else "Not saturated")
+        chao_flag = "Saturated" if final_chao_ratio > 0.647 else "Not saturated"
+        slope_flag = "Saturated" if slope <= slope_thresh else "Not saturated"
+
+        data.append([
+            samp,
+            final_cov,
+            cov_flag,
+            final_chao_ratio,
+            chao_flag,
+            slope,
+            slope_flag
+        ])
+
+    # Build DataFrame
+    df_table = pd.DataFrame(data, columns=[
+        "Sample",
+        "Good's coverage",
+        "Coverage status",
+        "Chao1 ratio",
+        "Chao1 status",
+        "Tail slope",
+        "Slope status"
+    ])
+
+    return df_table
+
+
+#Schloss PD, Handelsman J. (2005). Biotechniques 39: 239–244.
+#Discusses rarefaction, coverage, and sequencing depth in microbial surveys.
+#Schloss PD, et al. (2009). Appl Environ Microbiol 75: 7537–7546.
+#Uses Good’s coverage >0.98 to indicate saturation in 16S rRNA surveys.
+#Caporaso JG, et al. (2012). ISME J 6: 1621–1624.
+#Uses similar thresholds in high-throughput microbiome datasets.
+
+#C ≥ 0.98 → very well sampled (rare for WGS unless deeply sequenced)
+#0.95 ≤ C < 0.98 → reasonably saturated, major taxa captured
+#C < 0.95 → not saturated; many rare taxa remain
+
 ## below is snippet from the Brittas repo
 
 # next steps are outside in bash, to map assemblies to reads and bin (optionall), finally perofrm blastn
@@ -1371,3 +1539,28 @@ def InputReadsFilter(fw,
     #qa_stats.input_reads_reverse = total_reads
     #qa_stats.reads_after_trimming_forward = remaining_reads
     #qa_stats.reads_after_trimming_reverse = remaining_reads
+
+def filenams_to_readsnos(path, id_list):
+    readsnos = {}
+
+    # Regex: id_12345_tool.txt
+    pattern = re.compile(r"{}_(\d+)_blastn_report\.txt$")
+
+    for folder_id in id_list:
+        folder_path = os.path.join(path, folder_id)
+
+        if not os.path.isdir(folder_path):
+            print(f"Warning: folder '{folder_id}' not found, skipping...")
+            continue
+
+        values = []
+        id_pattern = re.compile(fr"{folder_id}_(\d+)_blastn_report\.txt$")
+
+        for filename in os.listdir(folder_path):
+            match = id_pattern.match(filename)
+            if match:
+                values.append(int(match.group(1)))
+
+        readsnos[folder_id] = sorted(values)
+
+    return readsnos

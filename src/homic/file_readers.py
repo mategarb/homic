@@ -205,11 +205,11 @@ def save_pfastq_Nreads(path1, path2, Nreads):
     header_lines1, read_lines1, qual_lines1 = fastq(path1)
     header_lines2, read_lines2, qual_lines2 = fastq(path2)
 
-    inds = random.sample(range(1, len(header_lines1)), Nreads)
-
-    header_lines1 = [header_lines1[i] for i in inds]
-    read_lines1 = [read_lines1[i] for i in inds]
-    qual_lines1 = [qual_lines1[i] for i in inds]
+    if Nreads < len(read_lines1): # for 100% no randomization, just save it as it is
+        inds = random.sample(range(1, len(header_lines1)), Nreads)
+        header_lines1 = [header_lines1[i] for i in inds]
+        read_lines1 = [read_lines1[i] for i in inds]
+        qual_lines1 = [qual_lines1[i] for i in inds]
     
     path3 = path1.replace(".fastq", "")
     path3 = path3 + "_" + str(Nreads) + ".fastq"
@@ -222,9 +222,10 @@ def save_pfastq_Nreads(path1, path2, Nreads):
             print('+', file = f1) # strand
             print(qual_lines1[i].strip(), file = f1) # quality sequence
     ###
-    header_lines2 = [header_lines2[i] for i in inds]
-    read_lines2 = [read_lines2[i] for i in inds]
-    qual_lines2 = [qual_lines2[i] for i in inds]
+    if Nreads < len(read_lines2):
+        header_lines2 = [header_lines2[i] for i in inds]
+        read_lines2 = [read_lines2[i] for i in inds]
+        qual_lines2 = [qual_lines2[i] for i in inds]
     
     path4 = path2.replace(".fastq", "")
     path4 = path4 + "_" + str(Nreads) + ".fastq"

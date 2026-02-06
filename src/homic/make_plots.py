@@ -1,4 +1,5 @@
 import time
+import math
 import statistics
 from scipy import stats
 import numpy as np
@@ -9,7 +10,8 @@ import matplotlib.colors as mcolors
 import seaborn as sns
 import pandas as pd
 from collections import Counter
-    
+from .process_data import read_n_clean_blastn, chao_idx, goods_coverage
+
 #####################################################################################################
 #####################################################################################################
 #####################################################################################################
@@ -344,6 +346,14 @@ def relative_abundance_double(data1, data2, name1, name2):
 
     return fig
 
+def pastelize(color, factor=0.5):
+    """Blend a color with white. factor=0 returns original color, factor=1 is full white"""
+    rgb = mcolors.to_rgb(color)
+    pastel_rgb = [(1 - factor) * c + factor * 1 for c in rgb]
+    return pastel_rgb
+
+
+
 def relative_abundance_four(data_list, bar_subtitles, common_legend=True, clegend_nrows=3):
     
     """
@@ -358,23 +368,33 @@ def relative_abundance_four(data_list, bar_subtitles, common_legend=True, clegen
     - common legend wrapped in 3 rows
     """
     # combine all species
-    all_species = list(set().union(*(df.index for df in data_list)))
-    
-    palette1 = sns.color_palette("tab20", 20)
-    palette2 = sns.color_palette("tab20b", 20)
+    #all_species = list(set().union(*(df.index for df in data_list)))
+    # Combine all species and sort alphabetically
+    all_species = sorted(set().union(*(df.index for df in data_list)))
 
-    palette = palette1 + palette2
+    palette = [
+    '#FF0000', '#00FF00', '#0000FF', '#00FFFF', '#FF00FF', '#FFFF00',  # basic colors
+    '#800000', '#008000', '#000080', '#008080', '#800080', '#808000',
+    '#FFA500', '#A52A2A', '#5F9EA0', '#D2691E', '#DC143C', '#006400',
+    '#8B008B', '#B8860B', '#556B2F', '#FF1493', '#1E90FF', '#FF4500',
+    '#2E8B57', '#DAA520', '#00CED1', '#FF69B4', '#8A2BE2', '#7FFF00',
+    '#FF6347', '#4682B4', '#9ACD32', '#FF8C00', '#6A5ACD', '#20B2AA',
+    '#FFB6C1', '#8FBC8F', '#DDA0DD', '#00FA9A', '#FF7F50', '#6495ED'
+    ]
+    # Create pastel palette
+    pastel_palette = [pastelize(c, factor=0.5) for c in palette]
 
-    # Map species to colors
-    color_dict = {species: palette[i] for i, species in enumerate(all_species)}
+    # Map species to colors (first 40 species)
+    color_dict = {species: pastel_palette[i] for i, species in enumerate(all_species)}
 
+    font_size = 20
     # Optional: make 'Other' always gray
-    color_dict['Other'] = '#ededed'
+    color_dict['Other'] = '#999999'
     
     
     data_list = [reorder_other_first(df) for df in data_list]
 
-    fig, axes = plt.subplots(1, 4, figsize=(20, 14), sharey=True)
+    fig, axes = plt.subplots(1, 4, figsize=(20, 18), sharey=True)
     
     for i, (df, subtitle, ax) in enumerate(zip(data_list, bar_subtitles, axes)):
 
@@ -387,17 +407,17 @@ def relative_abundance_four(data_list, bar_subtitles, common_legend=True, clegen
         
         # Replace x-tick labels with given subtitle
         ax.set_xticks(range(df.shape[1]))
-        ax.set_xticklabels([subtitle]*df.shape[1], rotation=45, ha='right', fontsize=16)
+        ax.set_xticklabels([subtitle]*df.shape[1], rotation=45, ha='right', fontsize=font_size)
         
         # Force y-axis from 0 to 1
         ax.set_ylim(0, 1)
         
         # Increase y-axis tick label font size
-        ax.tick_params(axis='y', labelsize=16)
+        ax.tick_params(axis='y', labelsize=font_size)
         
         # Y-axis label only for first subplot
         if i == 0:
-            ax.set_ylabel('Relative abundance', fontsize=16)
+            ax.set_ylabel('Relative abundance', fontsize=font_size+2)
         else:
             ax.set_ylabel('')
         
@@ -411,7 +431,7 @@ def relative_abundance_four(data_list, bar_subtitles, common_legend=True, clegen
         if not common_legend:
             handles = [plt.Rectangle((0,0),1,1,color=color_dict[sp]) for sp in df.index]
             ax.legend(handles[::-1], df.index[::-1], bbox_to_anchor=(1.05,1),
-                      loc='upper left', fontsize=16)
+                      loc='upper left', fontsize=font_size)
     
     # add common legend if requested
     if common_legend:
@@ -423,16 +443,16 @@ def relative_abundance_four(data_list, bar_subtitles, common_legend=True, clegen
         ncol = len(all_species) // clegend_nrows + (len(all_species) % clegend_nrows > 0)
 
         fig.legend(handles[::-1], labels[::-1], loc='lower center',
-                   ncol=ncol, fontsize=16, frameon=False, bbox_to_anchor=(0.5, -0.1), borderaxespad=0)
+                   ncol=ncol, fontsize=font_size, frameon=False, bbox_to_anchor=(0.5, -0.1), borderaxespad=0)
         plt.tight_layout(rect=[0,0.15,1,1])  # leave space at bottom
 
     else:
         plt.tight_layout()
     
     axes[0].text(-0.15, 1.05, "A", transform=axes[0].transAxes,
-                 fontsize=20, fontweight='bold', va='top', ha='right')
+                 fontsize=font_size+4, fontweight='bold', va='top', ha='right')
     axes[2].text(-0.15, 1.05, "B", transform=axes[2].transAxes,
-                 fontsize=20, fontweight='bold', va='top', ha='right')
+                 fontsize=font_size+4, fontweight='bold', va='top', ha='right')
     plt.subplots_adjust(left=0.05, right=0.95, top=0.95, bottom=0.2)
     plt.show()
     return fig
@@ -537,6 +557,127 @@ def relative_abundance_multi(listed_data, data_names, n=10, level="genus"):
     ax.legend(loc='center left', bbox_to_anchor=(1, 0.5))
     
     plt.show()
+
+def saturation_curves(samp_list, reads_nos, path_in, path_out,
+                      evalue=1e-200, pident=0.99, taxa="species"):
+
+    fig, axes = plt.subplots(1, 2, figsize=(13, 5))
+
+    # --- Generate 30 distinct colors ---
+    colors = (
+        plt.cm.tab20(np.linspace(0, 1, 20)).tolist()
+        + plt.cm.tab20b(np.linspace(0, 1, 10)).tolist()
+    )
+
+    for i, samp in enumerate(samp_list):
+        reads_n = reads_nos[samp]
+        species_num = []
+        chao_all = []
+        coverage_all = []
+        
+        for n in reads_n:
+            path_blast = f"{path_in}{samp}/{samp}_{n}_blastn_report.txt"
+            df = read_n_clean_blastn(path_blast, evalue=evalue, pident=pident)
+
+            species_num.append(len(set(df[taxa])))
+            chao_all.append(chao_idx(df[taxa])[0])
+
+            cov, F1, N = goods_coverage(df[taxa])
+            coverage_all.append(cov)
+
+        color = colors[i % len(colors)]
+
+        axes[0].plot(np.multiply(reads_n, 2), species_num,
+                     color=color, lw=1.5, alpha=0.9, label=samp)
+
+        axes[1].plot(np.multiply(reads_n, 2), chao_all, #also: coverage_all
+                     color=color, lw=1.5, alpha=0.9)
+
+    # --- Labels ---
+    axes[0].set(xlabel="Reads number", ylabel="Unique species number")
+    axes[1].set(xlabel="Reads number", ylabel="Chao1 index")
+
+    # --- Panel labels ---
+    axes[0].text(-0.08, 1.05, "A", transform=axes[0].transAxes,
+                 fontsize=14, fontweight="bold")
+    axes[1].text(-0.08, 1.05, "B", transform=axes[1].transAxes,
+                 fontsize=14, fontweight="bold")
+
+    # --- Single compact legend at bottom ---
+    handles, labels = axes[0].get_legend_handles_labels()
+
+    fig.legend(
+        handles, labels,
+        loc="lower center",
+        ncol=6,                # 30 samples → 5 rows of 6
+        fontsize=8,
+        frameon=False,
+        bbox_to_anchor=(0.5, -0.12)
+    )
+
+    plt.tight_layout(rect=[0, 0.1, 1, 1])
+
+    plt.savefig(path_out, dpi=300, bbox_inches="tight")
+    plt.show()
+
+
+def multi_saturation_curves(
+    samp_list, reads_nos, path_in, path_out,
+    evalue=1e-50, pident=0.99, taxa="species"
+):
+
+    n_samples = len(samp_list)
+    n_cols = 5                       # 5*6 = 30 max
+    n_rows = math.ceil(n_samples / n_cols)
+
+    fig, axes = plt.subplots(
+        n_rows, n_cols,
+        figsize=(15, 3 * n_rows),
+        sharex=True, sharey=True
+    )
+    axes = axes.flatten()
+
+    dark_blue = "#1f4fa3"
+
+    for i, samp in enumerate(samp_list):
+        ax = axes[i]
+        reads_n = reads_nos[samp]
+
+        species_num = []
+
+        for n in reads_n:
+            path_blast = f"{path_in}{samp}/{samp}_{n}_blastn_report.txt"
+            df = read_n_clean_blastn(path_blast, evalue=evalue, pident=pident)
+            species_num.append(len(set(df[taxa])))
+
+        x = np.multiply(reads_n, 2)
+
+        ax.plot(x, species_num, color=dark_blue, lw=2)
+
+        # Sample name
+        ax.text(
+            0.03, 0.95, samp,
+            transform=ax.transAxes,
+            ha="left", va="top",
+            fontsize=9, fontweight="bold"
+        )
+
+        ax.tick_params(labelsize=8)
+
+    # Hide unused panels
+    for j in range(i + 1, len(axes)):
+        axes[j].axis("off")
+
+    # Shared labels
+    fig.text(0.5, 0.04, "Reads", ha="center", fontsize=14)
+    fig.text(0.04, 0.5, "Unique species", va="center", rotation="vertical", fontsize=14)
+
+    plt.tight_layout(rect=[0.06, 0.06, 1, 1])
+
+    # Save and show
+    fig.savefig(path_out, dpi=300, bbox_inches="tight")
+    plt.show()
+
 
 def three_corplots(listed_data, data_names, level="genus"):
 

@@ -192,7 +192,7 @@ def hash_file(filename, buf_size=8192):
 
 
 ### classification function modified to run in homic ###
-def classify(db_path, input_file, confidence=0.01, threads=8, min_hit_gr=2):
+def classify(db_path, input_file, confidence=0.01, min_hit_gr=2, threads=16):
     """Classifies reads to genus / species according to db.
 
         Parameters
@@ -255,6 +255,25 @@ def classify(db_path, input_file, confidence=0.01, threads=8, min_hit_gr=2):
 
     return output
 
+def add_to_db(path_to_db, path_to_ref):
+    #kraken2-build --db /path/to/kraken2_db --add-to-library GCF_000001635.27_GRCm39_genomic.fna
+    current_dir = path.join(path.dirname(__file__))
+    classify_bin = os.path.join(current_dir + "/kraken2_install", "kraken2-build")
+   
+    #  Add fasta
+    cmd = [classify_bin,
+        "--db",
+        path_to_db,
+        "--add-to-library",
+        path_to_ref,]
+    subprocess.call(cmd)
+    # 3. Build db
+    cmd2 = [classify_bin,
+        "--build",
+        "--db",
+        path_to_db,]
+    subprocess.call(cmd2)
+
 def download_db(db_path, lib="human"):
 
     classify_bin = os.path.join(current_dir + "/kraken2_src", "download-library") # localize bins
@@ -292,8 +311,10 @@ def prepare_db(db_path, ref_path):
         cmd = [classify_bin,
             "--download-taxonomy",
             "--db",
-            db_path,]
+            db_path,
+            "--use-ftp"] # --use-ftp added later as some issues occured while downloading taxa 
         subprocess.call(cmd)
+        
     if not os.path.isdir(os.path.join(db_path + "/library")):     
         # 2. Add fasta
         cmd2 = [classify_bin,
