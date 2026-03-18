@@ -280,7 +280,11 @@ for samp in all_samps:
                 tmp_f1_b7 = reads_f1_b7_a.replace(".fastq", "_" + str(n_b7) + ".fastq")
                 tmp_f2_b7 = reads_f2_b7_a.replace(".fastq", "_" + str(n_b7) + ".fastq")
                 process_data.dehostaminate_pe(tmp_f1_b7, tmp_f2_b7, ref_file, method = "bwa", threads=32)
-                tmp_dec_b7 = tmp_f1_b7.replace(".fastq", "_bwa_unhosted.fastq") 
+                tmp_dec_b7 = tmp_f1_b7.replace(".fastq", "_bwa_unhosted.fastq")
+            else:
+                tmp_dec_b7 = []
+                tmp_f2_b7 = []
+                tmp_f1_b7 = []
             # b8
             if reads_f1_b8_a is not None and reads_f2_b8_a is not None and n_b8 is not None:
                 file_readers.save_pfastq_Nreads(reads_f1_b8_a, reads_f2_b8_a, n_b8)
@@ -288,6 +292,10 @@ for samp in all_samps:
                 tmp_f2_b8 = reads_f2_b8_a.replace(".fastq", "_" + str(n_b8) + ".fastq")
                 process_data.dehostaminate_pe(tmp_f1_b8, tmp_f2_b8, ref_file, method = "bwa", threads=32)
                 tmp_dec_b8 = tmp_f1_b8.replace(".fastq", "_bwa_unhosted.fastq")
+            else:
+                tmp_dec_b8 = []
+                tmp_f2_b8 = []
+                tmp_f1_b8 = []
             # b9
             if reads_f1_b9_a is not None and reads_f2_b9_a is not None and n_b9 is not None:
                 file_readers.save_pfastq_Nreads(reads_f1_b9_a, reads_f2_b9_a, n_b9)
@@ -295,6 +303,10 @@ for samp in all_samps:
                 tmp_f2_b9 = reads_f2_b9_a.replace(".fastq", "_" + str(n_b9) + ".fastq")
                 process_data.dehostaminate_pe(tmp_f1_b9, tmp_f2_b9, ref_file, method = "bwa", threads=32)
                 tmp_dec_b9 = tmp_f1_b9.replace(".fastq", "_bwa_unhosted.fastq")
+            else:
+                tmp_f2_b9 = []
+                tmp_f1_b9 = []
+                tmp_dec_b9 = []
             
             # assembling
             tmp_dec_b14 = tmp_f1_b14.replace(".fastq", "_bwa_unhosted.fastq")
@@ -317,21 +329,25 @@ for samp in all_samps:
             os.remove(tmp_dec_b14)
             os.remove(tmp_dec_b5)
             os.remove(tmp_dec_b6)
-            os.remove(tmp_dec_b7)
-            os.remove(tmp_dec_b8)
+            if tmp_dec_b7 != []:
+                os.remove(tmp_dec_b7)
+            if tmp_dec_b8 != []:
+                os.remove(tmp_dec_b8)
+            if tmp_dec_b9 != []:
+                os.remove(tmp_dec_b8)    
             os.remove(tmp_f1_b14)
             os.remove(tmp_f2_b14)
             os.remove(tmp_f1_b5)
             os.remove(tmp_f2_b5)
             os.remove(tmp_f1_b6)
             os.remove(tmp_f2_b6)
-            if os.path.exists(tmp_f1_b7):
+            if tmp_f1_b7 != []:
                 os.remove(tmp_f1_b7)
                 os.remove(tmp_f2_b7)
-            if os.path.exists(tmp_f1_b7):
+            if tmp_f1_b8 != []:
                 os.remove(tmp_f1_b8)
                 os.remove(tmp_f2_b8)
-            if os.path.exists(tmp_f1_b9):
+            if tmp_f1_b9 != []:
                 os.remove(tmp_f1_b9)
                 os.remove(tmp_f2_b9)
             os.remove(out_merged)
@@ -344,12 +360,12 @@ for samp in all_samps:
     os.remove(reads_f2_b5_a)
     os.remove(reads_f1_b6_a)
     os.remove(reads_f2_b6_a)
-    if os.path.exists(tmp_f1_b7):
+    if tmp_f1_b7_a != []:
         os.remove(reads_f1_b7_a)
         os.remove(reads_f2_b7_a)
-    if os.path.exists(tmp_f1_b8):
+    if tmp_f1_b8_a != []:
         os.remove(reads_f1_b8_a)
         os.remove(reads_f2_b8_a)
-    if os.path.exists(tmp_f1_b9):
+    if tmp_f1_b9_a != []:
         os.remove(reads_f1_b9_a)
         os.remove(reads_f2_b9_a)
