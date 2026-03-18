@@ -172,7 +172,7 @@ def chop_decon_se(dbpath, file, min_quality=10, min_length=300, head_crop=20, ta
 
 
 
-def run_atropos_se(file, seqtorem_path, seqtorem_rc_path, nhead=10, ntail=10, minlen=30, maxlen=2000, minqual=10, error_rate=0.1, threads = 32): # ont, SE
+def run_atropos_se(file, seqtorem_path, seqtorem_rc_path, nhead=0, ntail=0, minlen=30, maxlen=2000, minqual=20, error_rate=0.1, threads = 32): # ont, SE
     
     """Runs cutadapt and removes poly A from 3 prime and poly T from 5 prime. Adjusted for ONT data.
 
@@ -204,24 +204,28 @@ def run_atropos_se(file, seqtorem_path, seqtorem_rc_path, nhead=10, ntail=10, mi
             "-g", "file:" + seqtorem_rc_path,
             "-a", "file:" + seqtorem_rc_path,
             "-g", "file:" + seqtorem_path,
-            "-a", "A{100}$", # "A{10}$"
-            "-a", "T{100}$",# "T{10}$"
-            "-g", "A{100}",
-            "-g", "T{100}",
+            "-a", "A{10}", # "A{10}$"
+            "-a", "T{10}",# "T{10}$"
+            "-g", "A{10}",
+            "-g", "T{10}",
+            "-A", "G{10}",
+            "-G", "G{10}",
+            "-a", "G{200}",
+            "-g", "G{200}",
             "--error-rate",
             str(error_rate),
-            "--insert-match-error-rate",
-            "0.25",
+            #"--insert-match-error-rate",
+            #"0.25",
             "--threads",
             str(threads),
-            "--quality-cutoff",
+            "-q",
             str(minqual),
             "--minimum-length",
             str(minlen),
             "--maximum-length",
             str(maxlen),
-            "--overlap",
-            "5", # 10 is based on https://www.biorxiv.org/content/10.1101/2025.08.08.669394v1.full.pdf
+            #"--overlap",
+            #"5", # 10 is based on https://www.biorxiv.org/content/10.1101/2025.08.08.669394v1.full.pdf
             "--trim-n",
             "--times",
             "4",
@@ -233,6 +237,7 @@ def run_atropos_se(file, seqtorem_path, seqtorem_rc_path, nhead=10, ntail=10, mi
             file]
     
     subprocess.call(cmd)
+
 
 def run_atropos_pe(file1, file2, seqtorem_path, seqtorem_rc_path, nhead=20, ntail=10, minlen=50, minqual=20, error_rate=0.1, threads = 32): # ont, SE
     
@@ -305,6 +310,106 @@ def run_atropos_pe(file1, file2, seqtorem_path, seqtorem_rc_path, nhead=20, ntai
             ]
     
     subprocess.call(cmd)
+
+def run_fastp_se(file, seqtorem_path, minlen=30, minqual=20, threads = 32): # ont, SE
+    
+    """text
+
+        Parameters
+        ----------
+        file : string,
+            a path .fastq file
+        threads : string,
+            number of threads
+            
+        Returns
+        -------
+        no output, files are saved
+    """
+    
+    # cutadapt
+    if file[-2:] == "gz":
+        output = file.replace(".fastq.gz", "_fastped") # the same folder where original files are
+    else:
+        output = file.replace(".fastq", "_fastped") # the same folder where original files are
+
+    # variant 1
+    #cmd_off = ["fastp",
+   #         "-i",
+   #         file,
+   #         "-o",
+   #         output + ".fastq",
+   #         "--adapter_fasta", seqtorem_path,
+   #         "-q",
+   #         str(minqual),
+   #         "-l",
+   #         str(minlen),
+   #         "-g",
+   #         "-x",
+   #         "--poly_g_min_len",
+   #         str(minPolyLen),
+   #         "--poly_x_min_len",
+   #          str(minPolyLen),
+   #         str(ntail),
+   #         "--thread",
+   #         str(threads)
+   #         ]
+    # variant 2
+    #cmd_off2 = ["fastp",
+    #        "-i",
+    #        file,
+    #        "-o",
+    #        output + ".fastq",
+    #        "--adapter_fasta", seqtorem_path,
+    #        "-q",
+    #        str(minqual),
+    #        "-l",
+    #        str(minlen),
+    #        "-g",
+    #        "-x",
+    #        "--cut_front",
+    #        "--cut_tail",
+    #        "--thread",
+    #       str(threads)
+    #        ]
+    # variant 3 & 4
+    #cmd_off = ["fastp",
+    #        "-i",
+    #        file,
+    #        "-o",
+    #        output + ".fastq",
+    #        "--adapter_fasta", seqtorem_path,
+    #        "-q",
+    #        str(minqual),
+    #        "-l",
+    #        str(minlen),
+    #        "--trim_poly_x",
+    #        "--poly_x_min_len","12",
+    #        "--thread",
+    #        str(threads)
+    #        ]
+    ## variant 5
+    cmd = ["fastp",
+            "-i",
+            file,
+            "-o",
+            output + ".fastq",
+            "--adapter_fasta", seqtorem_path,
+            "-q",
+            str(minqual),
+            "-l",
+            str(minlen),
+            "--trim_poly_x",
+            "--poly_x_min_len","12",
+            "--dedup",
+            "--thread",
+            str(threads)
+            ]
+
+    
+    
+    subprocess.call(cmd)
+
 
     
 ### function

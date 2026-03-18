@@ -307,7 +307,7 @@ def prepare_db(db_path, ref_path):
     classify_bin = os.path.join(current_dir + "/kraken2_install", "kraken2-build")
 
     if not os.path.isdir(os.path.join(db_path + "/taxonomy")):    
-        # 1. Downloady taxa library
+        # 1. Download the taxa library
         cmd = [classify_bin,
             "--download-taxonomy",
             "--db",
@@ -316,18 +316,19 @@ def prepare_db(db_path, ref_path):
         subprocess.call(cmd)
         
     if not os.path.isdir(os.path.join(db_path + "/library")):     
-        # 2. Add fasta
+        # 2. Add your fasta
         cmd2 = [classify_bin,
             "--add-to-library",
             ref_path,
             "--db",
-            db_path,]
+            db_path]
         subprocess.call(cmd2)
-    # 3. Build db
+        
+    # 3. Build the db
     cmd3 = [classify_bin,
         "--build",
         "--db",
-        db_path,]
+        db_path]
     subprocess.call(cmd3)
 
 def decontaminate_paired(db_path, input_file1, input_file2, output, confidence=0.5, threads=12, min_base_qual=22):

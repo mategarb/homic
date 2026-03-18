@@ -139,7 +139,7 @@ def pval_annotation_text(x, pvalue_thresholds):
 
 def simple_text(pval, pvalue_format, pvalue_thresholds, test_short_name=None):
     """
-    Generates simple text for name and pvalue
+    Generates simple text for test name and pvalue
     :param pval: pvalue
     :param pvalue_format: format string for pvalue
     :param test_short_name: Short name of test to show

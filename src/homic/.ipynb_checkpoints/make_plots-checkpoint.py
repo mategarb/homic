@@ -457,6 +457,98 @@ def relative_abundance_four(data_list, bar_subtitles, common_legend=True, clegen
     plt.show()
     return fig
 
+def relative_abundance_two(data_list, bar_subtitles, common_legend=True, clegend_nrows=3):
+    
+    """
+    Plot two stacked bar charts in a single row with:
+    - 'Other' at bottom
+    - legends (common or individual)
+    - custom x-tick labels under each bar (rotated 45°)
+    - y-axis goes to 1
+    - bigger y-axis tick labels
+    - polished spacing
+    - common legend wrapped in 3 rows
+    """
+    # Combine all species and sort alphabetically
+    all_species = sorted(set().union(*(df.index for df in data_list)))
+
+    palette = [
+        '#FF0000', '#00FF00', '#0000FF', '#00FFFF', '#FF00FF', '#FFFF00',  # basic colors
+        '#800000', '#008000', '#000080', '#008080', '#800080', '#808000',
+        '#FFA500', '#A52A2A', '#5F9EA0', '#D2691E', '#DC143C', '#006400',
+        '#8B008B', '#B8860B', '#556B2F', '#FF1493', '#1E90FF', '#FF4500',
+        '#2E8B57', '#DAA520', '#00CED1', '#FF69B4', '#8A2BE2', '#7FFF00',
+        '#FF6347', '#4682B4', '#9ACD32', '#FF8C00', '#6A5ACD', '#20B2AA',
+        '#FFB6C1', '#8FBC8F', '#DDA0DD', '#00FA9A', '#FF7F50', '#6495ED'
+    ]
+    # Create pastel palette
+    pastel_palette = [pastelize(c, factor=0.5) for c in palette]
+
+    # Map species to colors (first 40 species)
+    color_dict = {species: pastel_palette[i] for i, species in enumerate(all_species)}
+    # Optional: make 'Other' always gray
+    color_dict['Other'] = '#999999'
+    
+    data_list = [reorder_other_first(df) for df in data_list]
+
+    fig, axes = plt.subplots(1, 2, figsize=(12, 18), sharey=True)
+    
+    for i, (df, subtitle, ax) in enumerate(zip(data_list, bar_subtitles, axes)):
+
+        df.T.plot(kind='bar',
+                  stacked=True,
+                  ax=ax,
+                  color=[color_dict[sp] for sp in df.index],
+                  width=0.5,
+                  legend=False)
+        
+        # Replace x-tick labels with given subtitle
+        ax.set_xticks(range(df.shape[1]))
+        ax.set_xticklabels([subtitle]*df.shape[1], rotation=45, ha='right', fontsize=20)
+        
+        # Force y-axis from 0 to 1
+        ax.set_ylim(0, 1)
+        
+        # Increase y-axis tick label font size
+        ax.tick_params(axis='y', labelsize=20)
+        
+        # Y-axis label only for first subplot
+        if i == 0:
+            ax.set_ylabel('Relative abundance', fontsize=22)
+        else:
+            ax.set_ylabel('')
+        
+        # Clean spines
+        ax.spines['top'].set_visible(False)
+        ax.spines['right'].set_visible(False)
+        ax.spines['left'].set_visible(True)
+        ax.spines['bottom'].set_visible(True)
+        
+        # Individual legend if common_legend is False
+        if not common_legend:
+            handles = [plt.Rectangle((0,0),1,1,color=color_dict[sp]) for sp in df.index]
+            ax.legend(handles[::-1], df.index[::-1], bbox_to_anchor=(1.05,1),
+                      loc='upper left', fontsize=20)
+    
+    # add common legend if requested
+    if common_legend:
+        labels = sorted(all_species, reverse=True)
+        handles = [plt.Rectangle((0,0),1,1,color=color_dict[sp]) for sp in labels]
+
+        ncol = len(all_species) // clegend_nrows + (len(all_species) % clegend_nrows > 0)
+
+        fig.legend(handles[::-1], labels[::-1], loc='lower center',
+                   ncol=ncol, fontsize=20, frameon=False, bbox_to_anchor=(0.5, -0.1), borderaxespad=0)
+        plt.tight_layout(rect=[0,0.15,1,1])  # leave space at bottom
+
+    else:
+        plt.tight_layout()
+    
+    # Removed subplot labels A and B
+    plt.subplots_adjust(left=0.05, right=0.95, top=0.95, bottom=0.2)
+    plt.show()
+    return fig
+
 
 def relative_abundance_single(data, data_name, thr = 0.01, ntop = 10):
 
