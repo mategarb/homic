@@ -39,7 +39,7 @@ def merge_fastqs(files, output_file):
 os.environ["PATH"] = "/gpfs/commons/home/mgarbulowski/ncbi-blast-2.16.0+/bin:" + os.environ["PATH"]
 
 ## output
-main_path = "/gpfs/commons/home/mgarbulowski/016_proj_shm/metagenomes_lib/saturation_analysis_x7"
+main_path = "/gpfs/commons/home/mgarbulowski/016_proj_shm/metagenomes_lib/saturation_analysis_x7_v2"
 #main_path = "/gpfs/commons/home/mgarbulowski/016_proj_shm/metagenomes_lib/saturation_analysis_x6_v2"
 #main_path = "/gpfs/commons/home/mgarbulowski/016_proj_shm/metagenomes_lib/saturation_analysis_x6_v3"
 
@@ -61,7 +61,10 @@ fasta_rc_path = "/gpfs/commons/home/mgarbulowski/016_proj_shm/metagenomes_lib/dn
 # all_samps = ["KP004"] # KP004,"KP025", "KP046", "KP049", "KP037", "KP038", "KP021", "KP012"
 
 ## remaining after last batch
-all_samps = ["KP005","KP011","KP013","KP026","KP029","KP033","KP048","KP003","KP010","KP012","KP052","KP021"]
+# part 1
+#all_samps = ["KP011","KP013","KP026","KP029","KP033","KP048"] # "KP005",
+# part 2
+all_samps = ["KP003","KP010","KP012","KP052","KP021"] # "KP005",
 
 ## iterate over all samples
 ## steps need to be performed separately (we cannot merge files at the beginning) cause we detected some batch effects
@@ -334,7 +337,7 @@ for samp in all_samps:
             if tmp_dec_b8 != []:
                 os.remove(tmp_dec_b8)
             if tmp_dec_b9 != []:
-                os.remove(tmp_dec_b8)    
+                os.remove(tmp_dec_b9)
             os.remove(tmp_f1_b14)
             os.remove(tmp_f2_b14)
             os.remove(tmp_f1_b5)
@@ -360,12 +363,12 @@ for samp in all_samps:
     os.remove(reads_f2_b5_a)
     os.remove(reads_f1_b6_a)
     os.remove(reads_f2_b6_a)
-    if tmp_f1_b7_a != []:
+    if reads_f1_b7_a != []:
         os.remove(reads_f1_b7_a)
         os.remove(reads_f2_b7_a)
-    if tmp_f1_b8_a != []:
+    if reads_f1_b8_a != []:
         os.remove(reads_f1_b8_a)
         os.remove(reads_f2_b8_a)
-    if tmp_f1_b9_a != []:
+    if reads_f1_b9_a != []:
         os.remove(reads_f1_b9_a)
         os.remove(reads_f2_b9_a)
