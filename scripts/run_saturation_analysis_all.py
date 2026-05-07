@@ -39,7 +39,8 @@ def merge_fastqs(files, output_file):
 os.environ["PATH"] = "/gpfs/commons/home/mgarbulowski/ncbi-blast-2.16.0+/bin:" + os.environ["PATH"]
 
 ## output
-main_path = "/gpfs/commons/home/mgarbulowski/016_proj_shm/metagenomes_lib/saturation_analysis_x7_v2"
+
+#main_path = "/gpfs/commons/home/mgarbulowski/016_proj_shm/metagenomes_lib/saturation_analysis_x7_v2"
 #main_path = "/gpfs/commons/home/mgarbulowski/016_proj_shm/metagenomes_lib/saturation_analysis_x6_v2"
 #main_path = "/gpfs/commons/home/mgarbulowski/016_proj_shm/metagenomes_lib/saturation_analysis_x6_v3"
 
@@ -47,6 +48,7 @@ main_path = "/gpfs/commons/home/mgarbulowski/016_proj_shm/metagenomes_lib/satura
 db_path = "/gpfs/commons/home/mgarbulowski/016_proj_shm/ref_dbs/kraken/human_hg38"
 #ref_file = "/gpfs/commons/home/mgarbulowski/016_proj_shm/references/GRCh38.fna"
 ref_file = "/gpfs/commons/home/mgarbulowski/016_proj_shm/ref_dbs/bwa/GRCh38.primary_assembly.genome.fa"
+
 fasta_path = "/gpfs/commons/home/mgarbulowski/016_proj_shm/metagenomes_lib/dna_fragments.fa"
 fasta_rc_path = "/gpfs/commons/home/mgarbulowski/016_proj_shm/metagenomes_lib/dna_fragments_rc.fa"
 
@@ -54,8 +56,15 @@ fasta_rc_path = "/gpfs/commons/home/mgarbulowski/016_proj_shm/metagenomes_lib/dn
 ## selecting what samples to process
 ## because samples in particular batches may differ
 
-#all_samps = #["KP027","KP029","KP033","KP035","KP037","KP038","KP040","KP041","KP046","KP047","KP048","KP049","KP052"] # "KP003","KP004","KP005","KP008","KP010","KP011","KP012",
-        # "KP013","KP016","KP021","KP024","KP025","KP026",
+# part I
+#main_path = "/gpfs/commons/home/mgarbulowski/016_proj_shm/metagenomes_lib/final_blastn1"
+#all_samps = ["KP047"] # "KP027","KP029","KP033","KP035","KP037","KP038","KP040","KP041","KP046",
+# part II
+all_samps = ["KP010","KP011"] # "KP048","KP049","KP052", "KP003","KP004","KP005","KP008",
+main_path = "/gpfs/commons/home/mgarbulowski/016_proj_shm/metagenomes_lib/final_blastn2"
+# part III
+#all_samps = ["KP012","KP025","KP026"] # "KP013","KP016","KP021","KP024",
+#main_path = "/gpfs/commons/home/mgarbulowski/016_proj_shm/metagenomes_lib/final_blastn3"
 
 ## samples selected for more seq after saturation analysis
 # all_samps = ["KP004"] # KP004,"KP025", "KP046", "KP049", "KP037", "KP038", "KP021", "KP012"
@@ -64,7 +73,7 @@ fasta_rc_path = "/gpfs/commons/home/mgarbulowski/016_proj_shm/metagenomes_lib/dn
 # part 1
 #all_samps = ["KP011","KP013","KP026","KP029","KP033","KP048"] # "KP005",
 # part 2
-all_samps = ["KP003","KP010","KP012","KP052","KP021"] # "KP005",
+#all_samps = ["KP021"] # "KP005","KP003","KP010","KP012","KP052",
 
 ## iterate over all samples
 ## steps need to be performed separately (we cannot merge files at the beginning) cause we detected some batch effects
@@ -203,7 +212,9 @@ for samp in all_samps:
         reads_f1_b9_a = []
         reads_f2_b9_a = []
     
-    reads_Ps = [x / 100 for x in [1,5,10,20,30,40,50,55,60,70,80,90,95,99,100]] # percentage, so balanced number is taken from each batch
+    reads_Ps = [x / 100 for x in [100]] # percentage, so balanced number is taken from each batch, 100 means take all
+    # it was 15 different thresholds 
+    # original thresholds: [1,5,10,20,30,40,50,55,60,70,80,90,95,99,100]
     #reads_Ps = [1]
     
     reads_Ns_b14 = [round(x * len(Ntot_f1_b14[0])) for x in reads_Ps]
@@ -324,8 +335,8 @@ for samp in all_samps:
             
             ## assigning
             fa_path = main_path + "/metagenome_contigs_" + samp + ".fastq"
-            bdb_path = "/gpfs/commons/home/mgarbulowski/016_proj_shm/ref_dbs/blastn/bac_refs_refseq/bac_refs_refseq"
-            #bdb_path = "/gpfs/commons/home/mgarbulowski/016_proj_shm/ref_dbs/nt_blast/nt_blast"
+            #bdb_path = "/gpfs/commons/home/mgarbulowski/016_proj_shm/ref_dbs/blastn/bac_refs_refseq/bac_refs_refseq"
+            bdb_path = "/gpfs/commons/home/mgarbulowski/016_proj_shm/ref_dbs/blastn/nt_blast/nt_blast"
             out_path = out_main_path + "/" + samp + "_" + str(reads_Ns_all[i]) + "_blastn_report.txt"
             process_data.run_blastn(fa_path, bdb_path, out_path, nthreads=32, evalue=1e-6, max_ts=5, max_h=1)
 

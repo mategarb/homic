@@ -1042,8 +1042,15 @@ def perc_contigs_assigned(path_blast, path_ctgs):
 def select_taxa(path_blast, samps_ids, taxa_level="species", db = "nt"):
     
     all_dfs = []
-    for idx, samp in enumerate(samps_ids):  
-        path_blast_full = path_blast + samp + "_blastn_report.txt"
+    for idx, samp in enumerate(samps_ids):
+
+        pattern = os.path.join(path_blast, samp + "*_blastn_report.txt")
+        matches = glob.glob(pattern)
+        if matches:
+            path_blast_full = matches[0]  # or handle multiple matches
+        else:
+            path_blast_full = None
+
         df = read_n_clean_blastn(path_blast_full, db = db) # use defaults
         all_dfs.append(df)
     
@@ -1135,6 +1142,10 @@ def read_n_clean_blastn(path_blast, db = "nt", top_hits = True, evalue = 1e-200,
         rem_und = ["bacterium" not in spec.lower() for spec in data["species"]]
         data = data[rem_und]
 
+    rem_upl = ["unidentified plasmid" not in spec.lower() for spec in data["species"]]
+    data = data[rem_upl]
+
+    
     if top_hits:
         data = (
             data.sort_values(by=["contig_id", "evalue", "bitscore"], ascending=[True, True, False])
@@ -1161,6 +1172,10 @@ def read_n_clean_blastn(path_blast, db = "nt", top_hits = True, evalue = 1e-200,
 
     tmp_rem = ["crassphage" not in spec.lower() for spec in data["genus"]]
     data = data[tmp_rem]
+
+    tmp_rem = ["unidentified" not in spec.lower() for spec in data["genus"]]
+    data = data[tmp_rem]
+    
 
     ### finally, sorting by two columns: evalue & bitscore
     data = data.sort_values(by=['evalue'], ascending=True)
