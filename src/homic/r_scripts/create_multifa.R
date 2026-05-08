@@ -7,13 +7,13 @@ options(timeout = 30000)
 # USER SETTINGS
 ############################################################
 
-input_file <- "/Users/matga374/Desktop/all_species+female_lowSES_eed_specific_005.txt"
-output_dir <- "/Users/matga374/Desktop/hummic_1000_3prime_baconly"
+input_file <- "/file.txt"
+output_dir <- "/folder"
 
 full_genome <- TRUE
 seq_lens <- c(1000)   # used only if full_genome == FALSE
 
-file_name <- "full_genome_hummic"
+file_name <- "3prime_1000_genome"
 
 ############################################################
 # READ SPECIES LIST
